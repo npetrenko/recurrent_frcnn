@@ -43,7 +43,7 @@ def get_data(videos_path, annotations_path):
                     #print(frame_path.format(frameix))
                     img = cv2.imread(frame_path.format(frameix))
                     (rows,cols) = img.shape[:2]
-                    frames[frameix]['filename'] = frame_path.format(frameix)
+                    frames[frameix]['filepath'] = frame_path.format(frameix)
                     frames[frameix]['width'] = cols
                     frames[frameix]['height'] = rows
                     frames[frameix]['bboxes'] = []

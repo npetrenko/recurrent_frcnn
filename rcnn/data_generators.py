@@ -232,14 +232,14 @@ def calc_rpn(C, img_data, width, height, resized_width, resized_height, img_leng
     # regions. We also limit it to 256 regions.
     num_regions = 256
 
-    if len(pos_locs[0]) > num_regions/2:
-        val_locs = random.sample(range(len(pos_locs[0])), len(pos_locs[0]) - num_regions/2)
-        y_is_box_valid[0, pos_locs[0][val_locs], pos_locs[1][val_locs], pos_locs[2][val_locs]] = 0
-        num_pos = num_regions/2
+    #if len(pos_locs[0]) > num_regions/2:
+        #val_locs = random.sample(range(len(pos_locs[0])), len(pos_locs[0]) - num_regions/2)
+        #y_is_box_valid[0, pos_locs[0][val_locs], pos_locs[1][val_locs], pos_locs[2][val_locs]] = 0
+        #num_pos = num_regions/2
 
-    if len(neg_locs[0]) + num_pos > num_regions:
-        val_locs = random.sample(range(len(neg_locs[0])), len(neg_locs[0]) - num_pos)
-        y_is_box_valid[0, neg_locs[0][val_locs], neg_locs[1][val_locs], neg_locs[2][val_locs]] = 0
+    #if len(neg_locs[0]) + num_pos > num_regions:
+        #val_locs = random.sample(range(len(neg_locs[0])), len(neg_locs[0]) - num_pos)
+        #y_is_box_valid[0, neg_locs[0][val_locs], neg_locs[1][val_locs], neg_locs[2][val_locs]] = 0
 
     y_rpn_cls = np.concatenate([y_is_box_valid, y_rpn_overlap], axis=1)
     y_rpn_regr = np.concatenate([np.repeat(y_rpn_overlap, 4, axis=1), y_rpn_regr], axis=1)
@@ -270,68 +270,69 @@ def threadsafe_generator(f):
         return threadsafe_iter(f(*a, **kw))
     return g
 
-def get_anchor_gt(all_img_data, class_count, C, img_length_calc_function, backend, mode='train'):
+def get_anchor(frame, class_count, C, img_length_calc_function, backend, mode='train'):
 
-    # The following line is not useful with Python 3.5, it is kept for the legacy
-    # all_img_data = sorted(all_img_data)
+    img_data_aug, x_img = data_augment.augment(frame, C, augment=False)
+    (width, height) = (img_data_aug['width'], img_data_aug['height'])
+    (rows, cols, _) = x_img.shape
 
-    sample_selector = SampleSelector(class_count)
+    assert cols == width
+    assert rows == height
 
-    while True:
-        if mode == 'train':
-            np.random.shuffle(all_img_data)
+    # get image dimensions for resizing
+    (resized_width, resized_height) = get_new_img_size(width, height, C.im_size)
 
-        for img_data in all_img_data:
-            try:
+    # resize the image so that smalles side is length = 600px
+    x_img = cv2.resize(x_img, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
 
-                if C.balanced_classes and sample_selector.skip_sample_for_balanced_class(img_data):
-                    continue
+    y_rpn_cls, y_rpn_regr = calc_rpn(C, img_data_aug, width, height, resized_width, resized_height, img_length_calc_function)
 
-                # read in image, and optionally add augmentation
+    # Zero-center by mean pixel, and preprocess image
 
-                if mode == 'train':
-                    img_data_aug, x_img = data_augment.augment(img_data, C, augment=True)
-                else:
-                    img_data_aug, x_img = data_augment.augment(img_data, C, augment=False)
+    x_img = x_img[:,:, (2, 1, 0)]  # BGR -> RGB
+    x_img = x_img.astype(np.float32)
+    x_img[:, :, 0] -= C.img_channel_mean[0]
+    x_img[:, :, 1] -= C.img_channel_mean[1]
+    x_img[:, :, 2] -= C.img_channel_mean[2]
+    x_img /= C.img_scaling_factor
 
-                (width, height) = (img_data_aug['width'], img_data_aug['height'])
-                (rows, cols, _) = x_img.shape
+    x_img = np.transpose(x_img, (2, 0, 1))
+    x_img = np.expand_dims(x_img, axis=0)
 
-                assert cols == width
-                assert rows == height
+    y_rpn_regr[:, y_rpn_regr.shape[1]//2:, :, :] *= C.std_scaling
 
-                # get image dimensions for resizing
-                (resized_width, resized_height) = get_new_img_size(width, height, C.im_size)
+    if backend == 'tf':
+        x_img = np.transpose(x_img, (0, 2, 3, 1))
+        y_rpn_cls = np.transpose(y_rpn_cls, (0, 2, 3, 1))
+        y_rpn_regr = np.transpose(y_rpn_regr, (0, 2, 3, 1))
 
-                # resize the image so that smalles side is length = 600px
-                x_img = cv2.resize(x_img, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
+    return np.copy(x_img), [np.copy(y_rpn_cls), np.copy(y_rpn_regr)], img_data_aug
 
+def video_streamer(videos, class_count, C, img_length_calc_function, backend, mode='train'):
+    video_batchsize = 2
+    frame_batchsize = 8
+
+    last_b = 4*(len(videos)//video_batchsize)
+    videos = videos + videos[:video_batchsize - len(videos)%video_batchsize]
+    for video_batch in range(len(videos)//video_batchsize):
+        batch_info = videos[video_batch*video_batchsize:(video_batch+1)*video_batchsize]
+        X, Y1, Y2, data = [], [], [], []
+        for video_info in batch_info:
+            X.append([])
+            Y1.append([])
+            Y2.append([])
+            data.append([])
+            sframe = np.random.randint(low=0, high=len(video_info) - frame_batchsize)
+
+            for frame in video_info[sframe:sframe + frame_batchsize]:
                 try:
-                    y_rpn_cls, y_rpn_regr = calc_rpn(C, img_data_aug, width, height, resized_width, resized_height, img_length_calc_function)
-                except:
-                    continue
+                    x, y, d = get_anchor(frame, class_count, C, img_length_calc_function, backend, mode=mode)
+                except Exception:
+                    print(frame)
+                    raise
+                X[-1].append(x[0])
+                Y1[-1].append(y[0][0])
+                Y2[-1].append(y[1][0])
+                data[-1].append(d)
+        yield np.array(X), [np.array(Y1), np.array(Y2)], data
 
-                # Zero-center by mean pixel, and preprocess image
-
-                x_img = x_img[:,:, (2, 1, 0)]  # BGR -> RGB
-                x_img = x_img.astype(np.float32)
-                x_img[:, :, 0] -= C.img_channel_mean[0]
-                x_img[:, :, 1] -= C.img_channel_mean[1]
-                x_img[:, :, 2] -= C.img_channel_mean[2]
-                x_img /= C.img_scaling_factor
-
-                x_img = np.transpose(x_img, (2, 0, 1))
-                x_img = np.expand_dims(x_img, axis=0)
-
-                y_rpn_regr[:, y_rpn_regr.shape[1]//2:, :, :] *= C.std_scaling
-
-                if backend == 'tf':
-                    x_img = np.transpose(x_img, (0, 2, 3, 1))
-                    y_rpn_cls = np.transpose(y_rpn_cls, (0, 2, 3, 1))
-                    y_rpn_regr = np.transpose(y_rpn_regr, (0, 2, 3, 1))
-
-                yield np.copy(x_img), [np.copy(y_rpn_cls), np.copy(y_rpn_regr)], img_data_aug
-
-            except Exception as e:
-                print(e)
-                continue
