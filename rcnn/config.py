@@ -7,7 +7,7 @@ class Config:
 
         self.verbose = True
 
-        self.network = 'resnet50'
+        self.network = 'simple_nn'
 
         # setting for data augmentation
         self.use_horizontal_flips = False
@@ -15,13 +15,13 @@ class Config:
         self.rot_90 = False
 
         # anchor box scales
-        self.anchor_box_scales = [64, 128, 256, 512]
+        self.anchor_box_scales = [1, 2, 3]
 
         # anchor box ratios
         self.anchor_box_ratios = [[1, 1], [1, 2], [2, 1]]
 
         # size to resize the smallest side of the image
-        self.im_size = 600
+        self.im_size = 32
 
         # image channel-wise mean to subtract
         self.img_channel_mean = [103.939, 116.779, 123.68]
@@ -31,7 +31,7 @@ class Config:
         self.num_rois = 4
 
         # stride at the RPN (this depends on the network configuration)
-        self.rpn_stride = 16
+        self.rpn_stride = 1  #16
 
         self.balanced_classes = False
 

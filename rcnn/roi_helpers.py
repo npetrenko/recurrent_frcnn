@@ -113,10 +113,13 @@ def apply_regr(x, y, w, h, tx, ty, tw, th):
         return x1, y1, w1, h1
 
     except ValueError:
+        raise
         return x, y, w, h
     except OverflowError:
+        raise
         return x, y, w, h
     except Exception as e:
+        raise
         print(e)
         return x, y, w, h
 
@@ -148,6 +151,7 @@ def apply_regr_np(X, T):
         h1 = np.round(h1)
         return np.stack([x1, y1, w1, h1])
     except Exception as e:
+        raise
         print(e)
         return X
 

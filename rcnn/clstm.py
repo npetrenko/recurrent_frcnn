@@ -6,6 +6,7 @@ def cnn(x, num_channels, nbfilter, filtersize, name):
     filt = tf.get_variable(name + '_' + 'conv_filter', initializer=finit)
     b = tf.get_variable(name + '_' + 'cov_bias', initializer=tf.random_normal([nbfilter], stddev=0.05))
     x = tf.nn.conv2d(x, filt, [1,1,1,1], 'SAME') + b
+    x.set_shape([None,None,None,nbfilter])
     return x #tf.nn.relu(x)
 
 def clstm(x, num_channels, n_hidden, filtersize):
@@ -47,4 +48,5 @@ def clstm(x, num_channels, n_hidden, filtersize):
                          initializer=tf.random_normal([2,batchsize, height, width, n_hidden], stddev=0.1))
         states = states[:,0]
         states = tf.transpose(states, [1,0,2,3,4])
+        states.set_shape([None,None,None,None,n_hidden])
     return states
