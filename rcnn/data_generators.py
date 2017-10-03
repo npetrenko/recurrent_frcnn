@@ -5,8 +5,10 @@ import random
 import copy
 from . import data_augment
 import threading
+import os
 import itertools
-
+import pickle
+import hashlib
 
 def union(au, bu, area_intersection):
     area_a = (au[2] - au[0]) * (au[3] - au[1])
@@ -290,6 +292,35 @@ def get_anchor(frame, class_count, C, img_length_calc_function, backend, mode='t
 
     return np.copy(x_img), [np.copy(y_rpn_cls), np.copy(y_rpn_regr)], img_data_aug
 
+nlev = 2
+def get_tree_name(fname):
+    fname = fname.replace('/', '_')
+    path = []
+    for _ in range(nlev):
+        current_dir = int(hashlib.md5((str(path) + '_' + fname).encode('utf-8')).hexdigest(), 16) % 100
+        current_dir = str(abs(current_dir))
+        path.append(current_dir)
+    path = os.path.join(*(path + [fname]))
+    return path
+    
+def extract(C, fname):
+    path = get_tree_name(fname)
+    path = os.path.join(C.tmp_dir, 'rpn_tmp', path)
+
+    with open(path, 'rb') as f:
+        x,y,d = pickle.load(f)
+    return x,y,d
+
+def pack(C, fname, x, y, d):
+    path = get_tree_name(fname)
+    path = os.path.join(C.tmp_dir, 'rpn_tmp', path)
+    x = x.astype('float32')
+    y[0] = y[0].astype('float32')
+    y[1] = y[1].astype('float32')
+
+    with open(path, 'wb') as f:
+        pickle.dump([x,y,d], f)
+
 def video_streamer(videos, class_count, C, img_length_calc_function, backend, mode='train'):
     video_batchsize = 4
     frame_batchsize = 8
@@ -313,10 +344,12 @@ def video_streamer(videos, class_count, C, img_length_calc_function, backend, mo
 
             for frame in video_info[sframe:sframe + frame_batchsize]:
                 try:
+                    x, y, d = extract(C, frame['filepath'])
+                except FileNotFoundError:
                     x, y, d = get_anchor(frame, class_count, C, img_length_calc_function, backend, mode=mode)
-                except Exception:
-                    print(frame)
-                    raise
+
+                    pack(C, frame['filepath'], x, y, d)
+
                 X[-1].append(x[0])
                 Y1[-1].append(y[0][0])
                 Y2[-1].append(y[1][0])
@@ -326,6 +359,6 @@ def video_streamer(videos, class_count, C, img_length_calc_function, backend, mo
             ix = 0
 
         dt1 = all_dt
-        print('Reading data took {} sec'.format(dt1 - dt0))
+        #print('Reading data took {} sec'.format(dt1 - dt0))
         yield np.array(X), [np.array(Y1), np.array(Y2)], data
 

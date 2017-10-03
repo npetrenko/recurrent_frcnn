@@ -35,6 +35,8 @@ class Config:
 
         self.balanced_classes = False
 
+        self.tmp_dir = './tmp/'
+
         # scaling the stdev
         self.std_scaling = 4.0
         self.classifier_regr_std = [8.0, 8.0, 4.0, 4.0]

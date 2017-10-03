@@ -82,6 +82,11 @@ celerybeat-schedule
 venv/
 ENV/
 
+tmp/
+
+*.pickle
+*.npy
+
 annotations/
 videos/
 # Spyder project settings

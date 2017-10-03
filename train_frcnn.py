@@ -32,7 +32,7 @@ annotation_path = './annotations'
 num_rois = 32
 num_epochs = 2000
 config_filename = 'config.pickle'
-output_weight_path = './model_frcnn.hdf5'
+output_weight_path = './save_dir/rpn_only.sv'
 input_weight_path = None
 
 from rcnn.video_parser import get_data
@@ -118,10 +118,17 @@ optimizer = tf.train.AdamOptimizer(0.001)
 rpn_loss = losses.rpn_loss_regr(num_anchors)(rpn_target_reg, rpn[1]) \
         + losses.rpn_loss_cls(num_anchors)(rpn_target_cls, rpn[0])
 
+tf.summary.scalar('rpn_loss', rpn_loss)
+
+all_summ = tf.summary.merge_all()
+
+writer = tf.summary.FileWriter('/tmp/clstm')
+
 rpn_train_op = optimizer.minimize(rpn_loss)
 
 def run_rpn(X, Y):
-    sess.run(rpn_train_op, {video_input: X, rpn_target_cls: Y[0], rpn_target_reg: Y[1]}) 
+    summary, _ = sess.run([all_summ, rpn_train_op], {video_input: X, rpn_target_cls: Y[0], rpn_target_reg: Y[1]}) 
+    return summary
 
 #model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors)])
 
@@ -147,8 +154,16 @@ vis = True
 init = tf.global_variables_initializer()
 sess.run(init)
 
+saver = tf.train.Saver()
+
+try:
+    saver.restore(sess, output_weight_path)
+except tf.errors.NotFoundError:
+    print('Failed to load weights!')
 
 for epoch_num in range(num_epochs):
+
+    iii = 0
 
     progbar = generic_utils.Progbar(epoch_length)
     print('Epoch {}/{}'.format(epoch_num + 1, num_epochs))
@@ -165,13 +180,17 @@ for epoch_num in range(num_epochs):
 
             t0 = time.time()
             X, Y, img_data = next(data_gen_train)
-            print('Generating data took {} sec'.format(time.time()-t0))
+            #print('Generating data took {} sec'.format(time.time()-t0))
 
 
             #loss_rpn = model_rpn.train_on_batch(X, Y)
-            run_rpn(X,Y)
+            writer.add_summary(run_rpn(X,Y))
 
-            P_rpn = predict_rpn(X)
+            if iii % 40 == 0:
+                saver.save(sess, output_weight_path)
+
+            iii += 1
+            #P_rpn = predict_rpn(X)
 
             #R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7, max_boxes=300)
             # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
