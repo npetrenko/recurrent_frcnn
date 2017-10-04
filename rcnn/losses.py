@@ -19,16 +19,21 @@ def rpn_loss_regr(num_anchors):
         x_abs = K.abs(x)
         x_bool = K.cast(K.less_equal(x_abs, 1.0), tf.float32)
 
-        tmp =  lambda_rpn_regr * K.sum(y_true[:, :, :, :, :4 * num_anchors] * (x_bool * (0.5 * x * x) + (1 - x_bool) * (x_abs - 0.5))) / K.sum(epsilon + y_true[:, :, :, :, :4 * num_anchors])
-        return tf.reduce_mean(tmp)
+        tmp =  lambda_rpn_regr * y_true[:, :, :, :, :4 * num_anchors] * (x_bool * (0.5 * x * x) + (1 - x_bool) * (x_abs - 0.5)) / K.sum(epsilon + y_true[:, :, :, :, :4 * num_anchors])
+
+        return tf.reduce_sum(tmp)
 
     return rpn_loss_regr_fixed_num
 
 
 def rpn_loss_cls(num_anchors):
     def rpn_loss_cls_fixed_num(y_true, y_pred):
-        tmp = lambda_rpn_class * K.sum(y_true[:, :, :, :, :num_anchors] * K.binary_crossentropy(y_pred[:, :, :, :, :], y_true[:, :, :, :, num_anchors:])) / K.sum(epsilon + y_true[:, :, :, :, :num_anchors])
-        return tf.reduce_mean(tmp)
+        tmp = lambda_rpn_class * y_true[:, :, :, :, :num_anchors] * K.binary_crossentropy(y_pred[:, :, :, :, :], y_true[:, :, :, :, num_anchors:]) / K.sum(epsilon + y_true[:, :, :, :, :num_anchors])
+
+        weight = tf.reduce_mean(y_true)
+        tmp = tf.reduce_sum(tmp) * y_true / weight + tf.reduce_sum(tmp) * (1-y_true) / (1- weight)
+        tmp = tmp / (1/weight + 1/(1-weight))
+        return tf.reduce_sum(tmp)
 
     return rpn_loss_cls_fixed_num
 
