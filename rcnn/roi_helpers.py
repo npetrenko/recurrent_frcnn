@@ -113,13 +113,10 @@ def apply_regr(x, y, w, h, tx, ty, tw, th):
         return x1, y1, w1, h1
 
     except ValueError:
-        raise
         return x, y, w, h
     except OverflowError:
-        raise
         return x, y, w, h
     except Exception as e:
-        raise
         print(e)
         return x, y, w, h
 
@@ -151,11 +148,10 @@ def apply_regr_np(X, T):
         h1 = np.round(h1)
         return np.stack([x1, y1, w1, h1])
     except Exception as e:
-        raise
         print(e)
         return X
 
-def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, num_boxes=30):
+def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, max_boxes=300):
     # code used from here: http://www.pyimagesearch.com/2015/02/16/faster-non-maximum-suppression-python/
     # if there are no boxes, return an empty list
     if len(boxes) == 0:
@@ -215,20 +211,12 @@ def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, num_boxes=30):
         idxs = np.delete(idxs, np.concatenate(([last],
             np.where(overlap > overlap_thresh)[0])))
 
-    if len(pick) > max_boxes:
-        pick = np.random.choice(pick, size=max_boxes, p=probs[pick])
-        probs = np.ones(len(pick), dtype='float64')
-
-    elif len(pick) < max_boxes:
-        full = list(pick) * (max_boxes/len(pick))
-        pick = np.array(full[:max_boxes])
-        probs = probs[pick]
-    else:
-        probs = probs[pick]
-
+        if len(pick) >= max_boxes:
+            break
 
     # return only the bounding boxes that were picked using the integer data type
     boxes = boxes[pick].astype("int")
+    probs = probs[pick]
     return boxes, probs
 
 import time

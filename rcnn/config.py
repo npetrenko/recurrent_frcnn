@@ -24,7 +24,7 @@ class Config:
         self.im_size = 32
 
         # image channel-wise mean to subtract
-        self.img_channel_mean = [103.939, 116.779, 123.68]
+        self.img_channel_mean = [100, 100, 100]
         self.img_scaling_factor = 1.0
 
         # number of ROIs at once
@@ -43,7 +43,7 @@ class Config:
 
         # overlaps for RPN
         self.rpn_min_overlap = 0.3
-        self.rpn_max_overlap = 0.7
+        self.rpn_max_overlap = 0.5
 
         # overlaps for classifier ROIs
         self.classifier_min_overlap = 0.1

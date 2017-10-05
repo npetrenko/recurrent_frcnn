@@ -28,12 +28,19 @@ def rpn_loss_regr(num_anchors):
 
 def rpn_loss_cls(num_anchors):
     def rpn_loss_cls_fixed_num(y_true, y_pred):
-        tmp = lambda_rpn_class * y_true[:, :, :, :, :num_anchors] * K.binary_crossentropy(y_pred[:, :, :, :, :], y_true[:, :, :, :, num_anchors:]) / K.sum(epsilon + y_true[:, :, :, :, :num_anchors])
+        tmp = lambda_rpn_class * K.binary_crossentropy(y_pred[:, :, :, :, :], y_true[:, :, :, :, num_anchors:]) 
 
-        weight = tf.reduce_mean(y_true)
-        tmp = tf.reduce_sum(tmp) * y_true / weight + tf.reduce_sum(tmp) * (1-y_true) / (1- weight)
-        tmp = tmp / (1/weight + 1/(1-weight))
-        return tf.reduce_sum(tmp)
+        ones = y_true[:,:,:,:,num_anchors:]
+        to_learn = y_true[:,:,:,:,:num_anchors]
+
+        weight_t = tf.reduce_mean(ones*to_learn) #reduce_mean !
+        #weight_bg = tf.reduce_sum((1-ones)*to_learn)
+
+        tmp = tf.reduce_sum(tmp*ones*to_learn)/weight_t/10 + tf.reduce_sum(tmp*(1-ones)*to_learn)#/weight_bg
+
+        tmp /= tf.reduce_sum(to_learn)
+
+        return tmp
 
     return rpn_loss_cls_fixed_num
 
