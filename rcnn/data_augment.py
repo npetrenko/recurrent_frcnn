@@ -10,6 +10,8 @@ def augment(img_data, config, augment=True):
     assert 'width' in img_data
     assert 'height' in img_data
 
+    augment = False
+
     img_data_aug = copy.deepcopy(img_data)
 
     t0 = time.time()

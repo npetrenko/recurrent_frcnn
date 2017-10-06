@@ -115,8 +115,10 @@ detector_loss_summary = tf.summary.scalar('detector_loss', detector_loss)
 writer = tf.summary.FileWriter('/tmp/clstm')
 
 def generate_train_op(loss):
-    optimizer = tf.train.AdamOptimizer(0.0003)
-    return optimizer.minimize(loss)
+    optimizer = tf.train.AdamOptimizer(0.001)
+    gvs = optimizer.compute_gradients(loss)
+    capped = [(tf.clip_by_value(grad, -5, 5), var) for grad, var in gvs if grad is not None]
+    return optimizer.apply_gradients(capped)
 
 rpn_train_op = generate_train_op(rpn_loss)
 detector_train_op = generate_train_op(detector_loss)
@@ -192,6 +194,7 @@ for epoch_num in range(num_epochs):
             if ROI is None:
                 print('ROI is none. Skipping detertor training')
                 continue
+
             Y1, Y2 = YY
 
             writer.add_summary(run_detec(X, ROI, Y1, Y2, timestep))
