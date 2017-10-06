@@ -16,7 +16,7 @@ from .clstm import clstm
 from rcnn.RoiPoolingConv import RoiPoolingConv
 from rcnn.FixedBatchNormalization import FixedBatchNormalization
 
-nb_clstm_filter = 30
+nb_clstm_filter = 40
 
 def get_img_output_length(width, height):
     def get_output_length(input_length):
@@ -73,7 +73,8 @@ def build_shared(video_input):
 
         num_channels = 64
 
-        shared_layers = clstm(shared_layers,num_channels,nb_clstm_filter,3)
+        shared_layers = clstm(shared_layers,num_channels,nb_clstm_filter,3, '1')
+        shared_layers = clstm(shared_layers,nb_clstm_filter,nb_clstm_filter,3, '2')
     return shared_layers
 
 def build_rpn(x, num_anchors):
@@ -94,3 +95,27 @@ def build_rpn(x, num_anchors):
         y_reg = tf.reshape(y_reg, [num_videos, num_frames, w, h, c*4])
         return y_cls, y_reg
 
+def classifier_layers(x, input_shape, trainable=False):
+    # compile times on theano tend to be very high, so we use smaller ROI pooling regions to workaround
+    # (hence a smaller stride in the region that follows the ROI pool)
+    x = TimeDistributed(Convolution2D(30, 3, padding='same', activation='relu', trainable=trainable, input_shape=input_shape))(x)
+    x = TimeDistributed(Convolution2D(30, 3, padding='same', activation='relu', trainable=trainable))(x)
+
+    return x
+
+def classifier(input_rois, num_rois, nb_classes, trainable=False):
+    def f(base_layers):
+
+        pooling_regions = 14
+        input_shape = (num_rois,14,14,64)
+
+        out_roi_pool = RoiPoolingConv(pooling_regions, num_rois)([base_layers, input_rois])
+        out = classifier_layers(out_roi_pool, input_shape=input_shape, trainable=True)
+
+        out = TimeDistributed(Flatten())(out)
+
+        out_class = TimeDistributed(Dense(nb_classes, activation='softmax', kernel_initializer='zero'), name='dense_class_{}'.format(nb_classes))(out)
+        # note: no regression target for bg class
+        out_regr = TimeDistributed(Dense(4 * (nb_classes-1), activation='linear', kernel_initializer='zero'), name='dense_regress_{}'.format(nb_classes))(out)
+        return [out_class, out_regr]
+    return f

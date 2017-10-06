@@ -322,8 +322,8 @@ def pack(C, fname, x, y, d):
         pickle.dump([x,y,d], f)
 
 def video_streamer(videos, class_count, C, img_length_calc_function, backend, mode='train'):
-    video_batchsize = 4
-    frame_batchsize = 8
+    video_batchsize = 1
+    frame_batchsize = 20
 
     last_b = 4*(len(videos)//video_batchsize)
     videos = videos + videos[:video_batchsize - len(videos)%video_batchsize]

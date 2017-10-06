@@ -12,7 +12,6 @@ lambda_cls_class = 1.0
 
 epsilon = 1e-4
 
-
 def rpn_loss_regr(num_anchors):
     def rpn_loss_regr_fixed_num(y_true, y_pred):
         x = y_true[:, :, :, :, 4 * num_anchors:] - y_pred
@@ -34,11 +33,12 @@ def rpn_loss_cls(num_anchors):
         to_learn = y_true[:,:,:,:,:num_anchors]
 
         weight_t = tf.reduce_mean(ones*to_learn) #reduce_mean !
-        #weight_bg = tf.reduce_sum((1-ones)*to_learn)
+        weight_bg = tf.reduce_mean((1-ones)*to_learn)
 
-        tmp = tf.reduce_sum(tmp*ones*to_learn)/weight_t/10 + tf.reduce_sum(tmp*(1-ones)*to_learn)#/weight_bg
-
-        tmp /= tf.reduce_sum(to_learn)
+        tmp = (tf.reduce_sum(tmp*ones*to_learn)/weight_t)/850 + tf.reduce_sum(tmp*(1-ones)*to_learn)/weight_bg
+        tmp /= (1/weight_t + 1/weight_bg)
+        #tmp = 8*tf.reduce_sum(tmp*ones*to_learn) + tf.reduce_sum(tmp*(1-ones)*to_learn)
+        tmp /= (tf.reduce_sum(to_learn) + 0.1)
 
         return tmp
 
@@ -46,7 +46,11 @@ def rpn_loss_cls(num_anchors):
 
 
 def class_loss_regr(num_classes):
-    def class_loss_regr_fixed_num(y_true, y_pred):
+    def class_loss_regr_fixed_num(y_true, y_pred, selected_time):
+        #y_pred = y_pred[:,selected_time]
+        print(y_true)
+        print(y_pred)
+
         x = y_true[:, :, 4*num_classes:] - y_pred
         x_abs = K.abs(x)
         x_bool = K.cast(K.less_equal(x_abs, 1.0), 'float32')
@@ -54,5 +58,6 @@ def class_loss_regr(num_classes):
     return class_loss_regr_fixed_num
 
 
-def class_loss_cls(y_true, y_pred):
+def class_loss_cls(y_true, y_pred, selected_time):
+    #y_pred = y_pred[:,selected_time]
     return lambda_cls_class * K.mean(categorical_crossentropy(y_true[0, :, :], y_pred[0, :, :]))

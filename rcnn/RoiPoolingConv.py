@@ -1,4 +1,5 @@
 from keras.engine.topology import Layer
+import numpy as np
 import keras.backend as K
 
 if K.backend() == 'tensorflow':
@@ -64,8 +65,8 @@ class RoiPoolingConv(Layer):
             w = rois[0, roi_idx, 2]
             h = rois[0, roi_idx, 3]
             
-            row_length = w / float(self.pool_size)
-            col_length = h / float(self.pool_size)
+            row_length = w / np.float64(self.pool_size)
+            col_length = h / np.float64(self.pool_size)
 
             num_pool_regions = self.pool_size
 
@@ -102,7 +103,7 @@ class RoiPoolingConv(Layer):
                 w = K.cast(w, 'int32')
                 h = K.cast(h, 'int32')
 
-                rs = tf.image.resize_images(img[:, y:y+h, x:x+w, :], (self.pool_size, self.pool_size))
+                rs = tf.image.resize_images(img[:, y:y+h, x:x+w, :], [self.pool_size, self.pool_size])
                 outputs.append(rs)
 
         final_output = K.concatenate(outputs, axis=0)

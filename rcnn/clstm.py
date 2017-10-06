@@ -9,8 +9,8 @@ def cnn(x, num_channels, nbfilter, filtersize, name):
     x.set_shape([None,None,None,nbfilter])
     return x #tf.nn.relu(x)
 
-def clstm(x, num_channels, n_hidden, filtersize):
-    with tf.variable_scope('clstm'):
+def clstm(x, num_channels, n_hidden, filtersize, name):
+    with tf.variable_scope('clstm_'+name):
         batchsize, height, width = tf.shape(x)[0], tf.shape(x)[2], tf.shape(x)[3]
         for scope in ['0', '1', '2', '3']:
             with tf.variable_scope(scope):

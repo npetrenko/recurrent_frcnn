@@ -19,6 +19,7 @@ from keras.layers import TimeDistributed, Lambda
 
 import tensorflow as tf
 from rcnn.clstm import clstm
+from rcnn import detector_rpn_extraction
 
 sess = tf.Session()
 K.set_session(sess)
@@ -61,6 +62,8 @@ if 'bg' not in classes_count:
 
 C.class_mapping = class_mapping
 
+num_classes = len(C.class_mapping)
+
 inv_map = {v: k for k, v in class_mapping.items()}
 
 print('Training images per class:')
@@ -96,7 +99,12 @@ num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
 video_input = tf.placeholder(tf.float32, [None,None,None,None,3])
 rpn_target_cls = tf.placeholder(tf.float32, [None,None,None,None,2*num_anchors])
 rpn_target_reg = tf.placeholder(tf.float32, [None,None,None,None,2*num_anchors*4])
-#roi_input = Input(shape=(None, None, 4))
+
+detector_selected_time = tf.placeholder(tf.int32)
+roi_input = tf.placeholder(tf.int64, [None,None,4])
+
+y1_input = tf.placeholder(tf.float32, [None,None,num_classes])
+y2_input = tf.placeholder(tf.float32, [None,None,(num_classes-1)*4*2])
 
 shared = nn.build_shared(video_input)
 
@@ -104,7 +112,10 @@ rpn = nn.build_rpn(shared, num_anchors)
 
 def predict_rpn(X):
     return sess.run(rpn, {video_input: X})
-#classifier = nn.classifier(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count), trainable=True)
+
+print('\n\n\nShared shape: {}'.format(num_classes))
+
+classifier = nn.classifier(roi_input, C.num_rois, nb_classes=num_classes, trainable=True)(shared[:, detector_selected_time])
 
 #model_rpn = Model(img_input, rpn[:2])
 #model_classifier = Model([img_input, roi_input], classifier)
@@ -113,21 +124,36 @@ def predict_rpn(X):
 #model_all = Model([img_input, roi_input], rpn[:2] + classifier)
 
 
-optimizer = tf.train.AdamOptimizer(0.001)
-
 rpn_loss = losses.rpn_loss_regr(num_anchors)(rpn_target_reg, rpn[1]) \
         + losses.rpn_loss_cls(num_anchors)(rpn_target_cls, rpn[0])
 
-tf.summary.scalar('rpn_loss', rpn_loss)
+rpn_loss_summary = tf.summary.scalar('rpn_loss', rpn_loss)
 
-all_summ = tf.summary.merge_all()
+print(classifier[0].shape)
+print(classifier[1].shape)
+
+detector_loss = losses.class_loss_cls(y1_input, classifier[0], detector_selected_time) + \
+            losses.class_loss_regr(num_classes-1)(y2_input, classifier[1], detector_selected_time)
+
+detector_loss_summary = tf.summary.scalar('detector_loss', detector_loss)
+
+#all_summ = tf.summary.merge_all()
 
 writer = tf.summary.FileWriter('/tmp/clstm')
 
-rpn_train_op = optimizer.minimize(rpn_loss)
+def generate_train_op(loss):
+    optimizer = tf.train.AdamOptimizer(0.0002)
+    return optimizer.minimize(loss)
+
+rpn_train_op = generate_train_op(rpn_loss)
+detector_train_op = generate_train_op(detector_loss)
 
 def run_rpn(X, Y):
-    summary, _ = sess.run([all_summ, rpn_train_op], {video_input: X, rpn_target_cls: Y[0], rpn_target_reg: Y[1]}) 
+    summary, _ = sess.run([rpn_loss_summary, rpn_train_op], {video_input: X, rpn_target_cls: Y[0], rpn_target_reg: Y[1]}) 
+    return summary
+
+def run_detec(X, ROI, Y1, Y2, timestep):
+    summary, _ = sess.run([detector_loss_summary, detector_train_op], {video_input:X, roi_input:ROI, y1_input:Y1, y2_input:Y2, detector_selected_time:timestep})
     return summary
 
 #model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors)])
@@ -180,65 +206,33 @@ for epoch_num in range(num_epochs):
 
             t0 = time.time()
             X, Y, img_data = next(data_gen_train)
-            #print('Generating data took {} sec'.format(time.time()-t0))
 
-
-            #loss_rpn = model_rpn.train_on_batch(X, Y)
             writer.add_summary(run_rpn(X,Y))
 
-            if iii % 40 == 0:
+            P_rpn = predict_rpn(X)
+
+            tlen = P_rpn[0].shape[1]
+
+            timestep = np.random.randint(low=0,high=tlen)
+
+            P_rpn = list(map(lambda x: x[:,timestep], P_rpn))
+
+            ROI, YY = detector_rpn_extraction.extract_features(P_rpn, C, img_data[0][timestep])
+
+            if iii % 4 == 0:
                 saver.save(sess, output_weight_path)
+
+            if ROI is None:
+                print('ROI is none. Skipping detertor training')
+                continue
+            Y1, Y2 = YY
+
+            writer.add_summary(run_detec(X, ROI, Y1, Y2, timestep))
+
 
             iii += 1
             #P_rpn = predict_rpn(X)
 
-            #R = roi_helpers.rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7, max_boxes=300)
-            # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
-            #X2, Y1, Y2, IouS = roi_helpers.calc_iou(R, img_data, C, class_mapping)
-
-            #if X2 is None:
-                #rpn_accuracy_rpn_monitor.append(0)
-                #rpn_accuracy_for_epoch.append(0)
-                #continue
-#
-            #neg_samples = np.where(Y1[0, :, -1] == 1)
-            #pos_samples = np.where(Y1[0, :, -1] == 0)
-            #if len(neg_samples) > 0:
-                #neg_samples = neg_samples[0]
-            #else:
-                #neg_samples = []
-
-            #if len(pos_samples) > 0:
-                #pos_samples = pos_samples[0]
-            #else:
-                #pos_samples = []
-            
-            #rpn_accuracy_rpn_monitor.append(len(pos_samples))
-            #rpn_accuracy_for_epoch.append((len(pos_samples)))
-
-            #use_detector = False
-            #if use_detector: #for first runs, do not use detection model
-                #if C.num_rois > 1:
-                        #if len(pos_samples) < C.num_rois//2:
-                                #selected_pos_samples = pos_samples.tolist()
-                        #else:
-                                #selected_pos_samples = np.random.choice(pos_samples, C.num_rois//2, replace=False).tolist()
-                        #try:
-                                #selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples), replace=False).tolist()
-                        #except:
-                                #selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples), replace=True).tolist()
-
-                        #sel_samples = selected_pos_samples + selected_neg_samples
-                #else:
-                        # in the extreme case where num_rois = 1, we pick a random pos or neg sample
-                        #selected_pos_samples = pos_samples.tolist()
-                        #selected_neg_samples = neg_samples.tolist()
-                        #if np.random.randint(0, 2):
-                                #sel_samples = random.choice(neg_samples)
-                        #else:
-                                #sel_samples = random.choice(pos_samples)
-
-                #loss_class = model_classifier.train_on_batch([X, X2[:, sel_samples, :]], [Y1[:, sel_samples, :], Y2[:, sel_samples, :]])
 
             #losses[iter_num, 0] = loss_rpn[1]
             #losses[iter_num, 1] = loss_rpn[2]
@@ -247,7 +241,7 @@ for epoch_num in range(num_epochs):
                 #losses[iter_num, 2] = loss_class[1]
                 #losses[iter_num, 3] = loss_class[2]
                 #losses[iter_num, 4] = loss_class[3]
-#
+
             #iter_num += 1
 
             #if use_detector:
