@@ -4,19 +4,15 @@ import pprint
 import sys
 import time
 import numpy as np
-from optparse import OptionParser
 import pickle
 import os
 
 from keras import backend as K
-from keras.optimizers import Adam, SGD, RMSprop
-from keras.layers import Input
-from keras.models import Model
+from keras.optimizers import Adam
 from rcnn import config, data_generators
 from rcnn import losses as losses
 import rcnn.roi_helpers as roi_helpers
 from keras.utils import generic_utils
-from keras.layers import TimeDistributed, Lambda
 
 import tensorflow as tf
 from rcnn.clstm import clstm
@@ -28,15 +24,12 @@ K.set_session(sess)
 
 sys.setrecursionlimit(40000)
 
-parser = OptionParser()
-
 video_path = './videos'
 annotation_path = './annotations'
 num_rois = 32
 num_epochs = 2000
 config_filename = 'config.pickle'
 output_weight_path = './save_dir/rpn_only.sv'
-input_weight_path = None
 n_jobs = 4
 
 from rcnn.video_parser import get_data
@@ -52,10 +45,6 @@ C.num_rois = int(num_rois)
 
 from rcnn import simple_nn as nn
 C.network = 'simple_nn'
-
-# check if weight path was passed via command line
-if input_weight_path:
-    C.base_net_weights = input_weight_path
 
 all_videos, classes_count, class_mapping = get_data(video_path, annotation_path)
 
@@ -79,29 +68,18 @@ print('Training images per class:')
 pprint.pprint(classes_count)
 print('Num classes (including bg) = {}'.format(len(classes_count)))
 
-config_output_filename = config_filename
-
-with open(config_output_filename, 'wb') as config_f:
+with open(config_filename, 'wb') as config_f:
     pickle.dump(C,config_f)
-    print('Config has been written to {}, and can be loaded when testing to ensure correct results'.format(config_output_filename))
+    print('Config has been written to {}, and can be loaded when testing to ensure correct results'.format(config_filename))
 
-random.shuffle(all_videos)
+#random.shuffle(all_videos)
 
-num_imgs = len(all_videos)
+num_videos = len(all_videos)
 
-#train_videos = [s for s in all_videos if s['imageset'] == 'trainval']
-#val_videos = [s for s in all_videos if s['imageset'] == 'test']
-train_videos = all_videos
-val_videos = all_videos
-
-print('Num train samples {}'.format(len(train_videos)))
-print('Num val samples {}'.format(len(val_videos)))
+print('Num samples {}'.format(num_videos))
 
 
-data_gen_train = data_generators.video_streamer(train_videos, classes_count, C, nn.get_img_output_length, K.image_dim_ordering(), mode='train')
-data_gen_val = data_generators.video_streamer(val_videos, classes_count, C, nn.get_img_output_length,K.image_dim_ordering(), mode='val')
-
-input_shape_img = (None, None, None, 3)
+data_gen = data_generators.video_streamer(all_videos, classes_count, C, nn.get_img_output_length, K.image_dim_ordering(), mode='train')
 
 num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
 
@@ -122,31 +100,17 @@ rpn = nn.build_rpn(shared, num_anchors)
 def predict_rpn(X):
     return sess.run(rpn, {video_input: X})
 
-print('\n\n\nShared shape: {}'.format(num_classes))
-
 classifier = nn.classifier(roi_input, C.num_rois, nb_classes=num_classes, trainable=True)(shared[:, detector_selected_time])
-
-#model_rpn = Model(img_input, rpn[:2])
-#model_classifier = Model([img_input, roi_input], classifier)
-
-# this is a model that holds both the RPN and the classifier, used to load/save weights for the models
-#model_all = Model([img_input, roi_input], rpn[:2] + classifier)
-
 
 rpn_loss = losses.rpn_loss_regr(num_anchors)(rpn_target_reg, rpn[1]) \
         + losses.rpn_loss_cls(num_anchors)(rpn_target_cls, rpn[0])
 
 rpn_loss_summary = tf.summary.scalar('rpn_loss', rpn_loss)
 
-print(classifier[0].shape)
-print(classifier[1].shape)
-
 detector_loss = losses.class_loss_cls(y1_input, classifier[0], detector_selected_time) + \
             losses.class_loss_regr(num_classes-1)(y2_input, classifier[1], detector_selected_time)
 
 detector_loss_summary = tf.summary.scalar('detector_loss', detector_loss)
-
-#all_summ = tf.summary.merge_all()
 
 writer = tf.summary.FileWriter('/tmp/clstm')
 
@@ -164,11 +128,6 @@ def run_rpn(X, Y):
 def run_detec(X, ROI, Y1, Y2, timestep):
     summary, _ = sess.run([detector_loss_summary, detector_train_op], {video_input:X, roi_input:ROI, y1_input:Y1, y2_input:Y2, detector_selected_time:timestep})
     return summary
-
-#model_rpn.compile(optimizer=optimizer, loss=[losses.rpn_loss_cls(num_anchors), losses.rpn_loss_regr(num_anchors)])
-
-#model_classifier.compile(optimizer=optimizer_classifier, loss=[losses.class_loss_cls, losses.class_loss_regr(len(classes_count)-1)], metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
-#model_all.compile(optimizer='sgd', loss='mae')
 
 epoch_length = 1000
 num_epochs = int(num_epochs)
@@ -200,7 +159,6 @@ for epoch_num in range(num_epochs):
 
     iii = 0
 
-    progbar = generic_utils.Progbar(epoch_length)
     print('Epoch {}/{}'.format(epoch_num + 1, num_epochs))
 
     while True:
@@ -214,7 +172,7 @@ for epoch_num in range(num_epochs):
                     print('RPN is not producing bounding boxes that overlap the ground truth boxes. Check RPN settings or keep training.')
 
             t0 = time.time()
-            X, Y, img_data = next(data_gen_train)
+            X, Y, img_data = next(data_gen)
 
             writer.add_summary(run_rpn(X,Y))
 
@@ -238,62 +196,7 @@ for epoch_num in range(num_epochs):
 
             writer.add_summary(run_detec(X, ROI, Y1, Y2, timestep))
 
-
             iii += 1
-            #P_rpn = predict_rpn(X)
-
-
-            #losses[iter_num, 0] = loss_rpn[1]
-            #losses[iter_num, 1] = loss_rpn[2]
-
-            #if use_detector:
-                #losses[iter_num, 2] = loss_class[1]
-                #losses[iter_num, 3] = loss_class[2]
-                #losses[iter_num, 4] = loss_class[3]
-
-            #iter_num += 1
-
-            #if use_detector:
-                #progbar.update(iter_num, [('rpn_cls', np.mean(losses[:iter_num, 0])), ('rpn_regr', np.mean(losses[:iter_num, 1])), ('detector_cls', np.mean(losses[:iter_num, 2])), ('detector_regr', np.mean(losses[:iter_num, 3]))])
-            #else:
-                #progbar.update(iter_num, [('rpn_cls', np.mean(losses[:iter_num, 0])), ('rpn_regr', np.mean(losses[:iter_num, 1]))])
-
-            #if iter_num == epoch_length:
-                #loss_rpn_cls = np.mean(losses[:, 0])
-                #loss_rpn_regr = np.mean(losses[:, 1])
-                #if use_detector:
-                    #loss_class_cls = np.mean(losses[:, 2])
-                    #loss_class_regr = np.mean(losses[:, 3])
-                    #class_acc = np.mean(losses[:, 4])
-
-                #mean_overlapping_bboxes = float(sum(rpn_accuracy_for_epoch)) / len(rpn_accuracy_for_epoch)
-                #rpn_accuracy_for_epoch = []
-
-                #if C.verbose:
-                    #print('Mean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(mean_overlapping_bboxes))
-                    #print('Classifier accuracy for bounding boxes from RPN: {}'.format(class_acc))
-                    #print('Loss RPN classifier: {}'.format(loss_rpn_cls))
-                    #print('Loss RPN regression: {}'.format(loss_rpn_regr))
-                    #if use_detector:
-                        #print('Loss Detector classifier: {}'.format(loss_class_cls))
-                        #print('Loss Detector regression: {}'.format(loss_class_regr))
-                    #print('Elapsed time: {}'.format(time.time() - start_time))
-
-                    #if not use_detector:
-                        #loss_class_cls = 0
-                        #loss_class_regr = 0
-                #curr_loss = loss_rpn_cls + loss_rpn_regr + loss_class_cls + loss_class_regr
-                #iter_num = 0
-                #start_time = time.time()
-
-                #if curr_loss < best_loss:
-                    #if C.verbose:
-                        #print('Total loss decreased from {} to {}, saving weights'.format(best_loss,curr_loss))
-                    #best_loss = curr_loss
-                    #model_all.save_weights(C.model_path)
-
-                #break
-
         except Exception as e:
             print('Exception: {}'.format(e))
             raise
