@@ -6,6 +6,7 @@ import time
 import numpy as np
 from optparse import OptionParser
 import pickle
+import os
 
 from keras import backend as K
 from keras.optimizers import Adam, SGD, RMSprop
@@ -20,6 +21,7 @@ from keras.layers import TimeDistributed, Lambda
 import tensorflow as tf
 from rcnn.clstm import clstm
 from rcnn import detector_rpn_extraction
+from rcnn.generate_cache import create_cache
 
 sess = tf.Session()
 K.set_session(sess)
@@ -35,6 +37,7 @@ num_epochs = 2000
 config_filename = 'config.pickle'
 output_weight_path = './save_dir/rpn_only.sv'
 input_weight_path = None
+n_jobs = 4
 
 from rcnn.video_parser import get_data
 
@@ -55,6 +58,12 @@ if input_weight_path:
     C.base_net_weights = input_weight_path
 
 all_videos, classes_count, class_mapping = get_data(video_path, annotation_path)
+
+if not os.path.exists(os.path.join(C.tmp_dir, 'rpn_tmp', '0')):
+    print('Cache not found! Creating cache')
+    t0 = time.time()
+    create_cache(all_videos, classes_count, C, nn.get_img_output_length, n_jobs=n_jobs)
+    print('Generating cache took {} minutes'.format((time.time() - t0)/60))
 
 if 'bg' not in classes_count:
     classes_count['bg'] = 0
