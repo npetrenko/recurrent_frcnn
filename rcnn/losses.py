@@ -27,17 +27,19 @@ def rpn_loss_regr(num_anchors):
 
 def rpn_loss_cls(num_anchors):
     def rpn_loss_cls_fixed_num(y_true, y_pred):
-        tmp = lambda_rpn_class * K.binary_crossentropy(y_pred[:, :, :, :, :], y_true[:, :, :, :, num_anchors:]) 
+        #tmp = lambda_rpn_class * K.binary_crossentropy(y_pred[:, :, :, :, :], y_true[:, :, :, :, num_anchors:]) 
 
         ones = y_true[:,:,:,:,num_anchors:]
+        tmp = lambda_rpn_class * ( ones*tf.log(y_pred)  + (1-ones)*tf.log(1-y_pred) )
+
+
         to_learn = y_true[:,:,:,:,:num_anchors]
 
-        weight_t = tf.reduce_mean(ones*to_learn) #reduce_mean !
-        weight_bg = tf.reduce_mean((1-ones)*to_learn)
+        weight_t = 0.08 #tf.reduce_mean(ones*to_learn)
+        weight_bg = 1 #tf.reduce_mean((1-ones)*to_learn)
 
-        tmp = (tf.reduce_sum(tmp*ones*to_learn)/weight_t)/850 + tf.reduce_sum(tmp*(1-ones)*to_learn)/weight_bg
+        tmp = tf.reduce_sum(tmp*ones*to_learn)/weight_t + tf.reduce_sum(tmp*(1-ones)*to_learn)/weight_bg
         tmp /= (1/weight_t + 1/weight_bg)
-        #tmp = 8*tf.reduce_sum(tmp*ones*to_learn) + tf.reduce_sum(tmp*(1-ones)*to_learn)
         tmp /= (tf.reduce_sum(to_learn) + 0.1)
 
         return tmp

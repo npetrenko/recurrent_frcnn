@@ -105,15 +105,15 @@ input_shape_img = (None, None, None, 3)
 
 num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
 
-video_input = tf.placeholder(tf.float32, [None,None,None,None,3])
-rpn_target_cls = tf.placeholder(tf.float32, [None,None,None,None,2*num_anchors])
-rpn_target_reg = tf.placeholder(tf.float32, [None,None,None,None,2*num_anchors*4])
+video_input = tf.placeholder(tf.float32, [None,None,None,None,3], name='video_input')
+rpn_target_cls = tf.placeholder(tf.float32, [None,None,None,None,2*num_anchors], name='rpn_target_for_classification')
+rpn_target_reg = tf.placeholder(tf.float32, [None,None,None,None,2*num_anchors*4], name='rpn_target_for_regression')
 
-detector_selected_time = tf.placeholder(tf.int32)
-roi_input = tf.placeholder(tf.int64, [None,None,4])
+detector_selected_time = tf.placeholder(tf.int32, name='selector_timestep_for_detector')
+roi_input = tf.placeholder(tf.int64, [None,None,4], name='roi_input')
 
-y1_input = tf.placeholder(tf.float32, [None,None,num_classes])
-y2_input = tf.placeholder(tf.float32, [None,None,(num_classes-1)*4*2])
+y1_input = tf.placeholder(tf.float32, [None,None,num_classes], name='detector_clf_input')
+y2_input = tf.placeholder(tf.float32, [None,None,(num_classes-1)*4*2], name='detector_regr_input')
 
 shared = nn.build_shared(video_input)
 
@@ -151,7 +151,7 @@ detector_loss_summary = tf.summary.scalar('detector_loss', detector_loss)
 writer = tf.summary.FileWriter('/tmp/clstm')
 
 def generate_train_op(loss):
-    optimizer = tf.train.AdamOptimizer(0.0002)
+    optimizer = tf.train.AdamOptimizer(0.0003)
     return optimizer.minimize(loss)
 
 rpn_train_op = generate_train_op(rpn_loss)

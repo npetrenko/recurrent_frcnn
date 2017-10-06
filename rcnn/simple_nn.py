@@ -36,9 +36,11 @@ def nn_base(trainable=False):
         bn_axis = 3
 
         x = img_input
-        x = Convolution2D(64, (3, 3), name='conv1', padding='same', trainable = trainable, activation='relu')(x)
-        x = Convolution2D(64, (3, 3), name='conv4', padding='same', trainable = trainable, activation='relu')(x)
-        x = Convolution2D(64, (3, 3), name='conv5', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(128, (2, 2), name='conv1', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(128, (2, 2), name='conv2', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(128, (2, 2), name='conv3', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(128, (2, 2), name='conv4', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(64, (2, 2), name='conv5', padding='same', trainable = trainable, activation='relu')(x)
         return x
     return f
 
