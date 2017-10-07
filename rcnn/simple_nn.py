@@ -26,16 +26,10 @@ def get_img_output_length(width, height):
 
 def nn_base(trainable=False):
     def f(input_tensor):
-        input_shape = (None, None, 3)
-
-        if not K.is_keras_tensor(input_tensor):
-            img_input = Input(tensor=input_tensor, shape=input_shape)
-        else:
-            img_input = input_tensor
 
         bn_axis = 3
 
-        x = img_input
+        x = input_tensor
         x = Convolution2D(128, (2, 2), name='conv1', padding='same', trainable = trainable, activation='relu')(x)
         x = Convolution2D(128, (2, 2), name='conv2', padding='same', trainable = trainable, activation='relu')(x)
         x = Convolution2D(128, (2, 2), name='conv3', padding='same', trainable = trainable, activation='relu')(x)
@@ -48,7 +42,7 @@ def rpn(num_anchors):
     def f(base_layers):
         x = Convolution2D(24, (2, 2), padding='same', activation='relu', name='rpn_conv1')(base_layers)
 
-        x_class = Convolution2D(num_anchors, (1, 1), activation='sigmoid', padding='same', name='rpn_out_class')(x)
+        x_class = Convolution2D(num_anchors, (1, 1), activation='linear', padding='same', name='rpn_out_class')(x)
         x_regr = Convolution2D(num_anchors * 4, (1, 1), activation='linear', padding='same', name='rpn_out_regress')(x)
 
         return [x_class, x_regr, base_layers]
@@ -61,6 +55,8 @@ def time_broadcast(f, x):
 
     time_flat = tf.reshape(x, [-1, w,h,c])
 
+    time_flat.set_shape([None,None,None,x.shape[-1]])
+
     y = f(time_flat)
 
     shape = tf.shape(y)
@@ -71,6 +67,7 @@ def time_broadcast(f, x):
 def build_shared(video_input):
     with tf.name_scope('shared_layers'):
         base = nn_base(trainable=True)
+
         shared_layers = time_broadcast(base, video_input)
 
         num_channels = 64
@@ -95,7 +92,7 @@ def build_rpn(x, num_anchors):
 
         y_cls = tf.reshape(y_cls, [num_videos, num_frames, w, h, c])
         y_reg = tf.reshape(y_reg, [num_videos, num_frames, w, h, c*4])
-        return y_cls, y_reg
+        return [y_cls, y_reg]
 
 def classifier_layers(x, input_shape, trainable=False):
     # compile times on theano tend to be very high, so we use smaller ROI pooling regions to workaround
@@ -116,7 +113,7 @@ def classifier(input_rois, num_rois, nb_classes, trainable=False):
 
         out = TimeDistributed(Flatten())(out)
 
-        out_class = TimeDistributed(Dense(nb_classes, activation='softmax', kernel_initializer='zero'), name='dense_class_{}'.format(nb_classes))(out)
+        out_class = TimeDistributed(Dense(nb_classes, activation='linear', kernel_initializer='zero'), name='dense_class_{}'.format(nb_classes))(out)
         # note: no regression target for bg class
         out_regr = TimeDistributed(Dense(4 * (nb_classes-1), activation='linear', kernel_initializer='zero'), name='dense_regress_{}'.format(nb_classes))(out)
         return [out_class, out_regr]

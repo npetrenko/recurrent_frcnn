@@ -30,7 +30,7 @@ num_rois = 32
 num_epochs = 2000
 config_filename = 'config.pickle'
 output_weight_path = './save_dir/rpn_only.sv'
-n_jobs = 4
+n_jobs = 8
 
 from rcnn.video_parser import get_data
 
@@ -97,15 +97,16 @@ shared = nn.build_shared(video_input)
 
 rpn = nn.build_rpn(shared, num_anchors)
 
-def predict_rpn(X):
-    return sess.run(rpn, {video_input: X})
 
 classifier = nn.classifier(roi_input, C.num_rois, nb_classes=num_classes, trainable=True)(shared[:, detector_selected_time])
 
-rpn_loss = losses.rpn_loss_regr(num_anchors)(rpn_target_reg, rpn[1]) \
-        + losses.rpn_loss_cls(num_anchors)(rpn_target_cls, rpn[0])
 
-rpn_loss_summary = tf.summary.scalar('rpn_loss', rpn_loss)
+rpn_clf_loss = losses.rpn_loss_cls(num_anchors)(rpn_target_cls, rpn[0])
+rpn_loss = losses.rpn_loss_regr(num_anchors)(rpn_target_reg, rpn[1]) \
+        + rpn_clf_loss
+
+rpn_summary = [tf.summary.scalar('rpn_loss', rpn_loss), tf.summary.scalar('rpn_clf_loss', rpn_clf_loss)]
+rpn_summary = tf.summary.merge(rpn_summary)
 
 detector_loss = losses.class_loss_cls(y1_input, classifier[0], detector_selected_time) + \
             losses.class_loss_regr(num_classes-1)(y2_input, classifier[1], detector_selected_time)
@@ -113,6 +114,12 @@ detector_loss = losses.class_loss_cls(y1_input, classifier[0], detector_selected
 detector_loss_summary = tf.summary.scalar('detector_loss', detector_loss)
 
 writer = tf.summary.FileWriter('/tmp/clstm')
+
+rpn[0] = tf.nn.sigmoid(rpn[0])
+classifier[0] = tf.nn.softmax(classifier[0])
+
+def predict_rpn(X):
+    return sess.run(rpn, {video_input: X})
 
 def generate_train_op(loss):
     optimizer = tf.train.AdamOptimizer(0.001)
@@ -124,7 +131,7 @@ rpn_train_op = generate_train_op(rpn_loss)
 detector_train_op = generate_train_op(detector_loss)
 
 def run_rpn(X, Y):
-    summary, _ = sess.run([rpn_loss_summary, rpn_train_op], {video_input: X, rpn_target_cls: Y[0], rpn_target_reg: Y[1]}) 
+    summary, _ = sess.run([rpn_summary, rpn_train_op], {video_input: X, rpn_target_cls: Y[0], rpn_target_reg: Y[1]}) 
     return summary
 
 def run_detec(X, ROI, Y1, Y2, timestep):

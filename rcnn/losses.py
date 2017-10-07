@@ -5,7 +5,7 @@ if K.image_dim_ordering() == 'tf':
     import tensorflow as tf
 
 lambda_rpn_regr = 1.0
-lambda_rpn_class = 1.0
+lambda_rpn_class = 10.0
 
 lambda_cls_regr = 1.0
 lambda_cls_class = 1.0
@@ -27,11 +27,9 @@ def rpn_loss_regr(num_anchors):
 
 def rpn_loss_cls(num_anchors):
     def rpn_loss_cls_fixed_num(y_true, y_pred):
-        #tmp = lambda_rpn_class * K.binary_crossentropy(y_pred[:, :, :, :, :], y_true[:, :, :, :, num_anchors:]) 
+        tmp = lambda_rpn_class * tf.nn.sigmoid_cross_entropy_with_logits(logits=y_pred[:, :, :, :, :], labels=y_true[:, :, :, :, num_anchors:]) 
 
         ones = y_true[:,:,:,:,num_anchors:]
-        tmp = lambda_rpn_class * ( ones*tf.log(y_pred)  + (1-ones)*tf.log(1-y_pred) )
-
 
         to_learn = y_true[:,:,:,:,:num_anchors]
 
@@ -62,4 +60,4 @@ def class_loss_regr(num_classes):
 
 def class_loss_cls(y_true, y_pred, selected_time):
     #y_pred = y_pred[:,selected_time]
-    return lambda_cls_class * K.mean(categorical_crossentropy(y_true[0, :, :], y_pred[0, :, :]))
+    return lambda_cls_class * tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_true[0, :, :], logits=y_pred[0, :, :]))
