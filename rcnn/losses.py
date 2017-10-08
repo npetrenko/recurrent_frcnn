@@ -33,8 +33,8 @@ def rpn_loss_cls(num_anchors):
 
         to_learn = y_true[:,:,:,:,:num_anchors]
 
-        weight_t = 0.08 #tf.reduce_mean(ones*to_learn)
-        weight_bg = 1 #tf.reduce_mean((1-ones)*to_learn)
+        weight_t = tf.reduce_mean(ones*to_learn) + 0.05
+        weight_bg = tf.reduce_mean((1-ones)*to_learn)
 
         tmp = tf.reduce_sum(tmp*ones*to_learn)/weight_t + tf.reduce_sum(tmp*(1-ones)*to_learn)/weight_bg
         tmp /= (1/weight_t + 1/weight_bg)

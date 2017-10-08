@@ -105,13 +105,19 @@ rpn_clf_loss = losses.rpn_loss_cls(num_anchors)(rpn_target_cls, rpn[0])
 rpn_loss = losses.rpn_loss_regr(num_anchors)(rpn_target_reg, rpn[1]) \
         + rpn_clf_loss
 
-rpn_summary = [tf.summary.scalar('rpn_loss', rpn_loss), tf.summary.scalar('rpn_clf_loss', rpn_clf_loss)]
+rpn_summary = [tf.summary.scalar('rpn_loss', rpn_loss), tf.summary.scalar('rpn_clf_loss', rpn_clf_loss),
+            tf.summary.scalar('rpn_reg_loss', rpn_loss - rpn_clf_loss)]
 rpn_summary = tf.summary.merge(rpn_summary)
 
-detector_loss = losses.class_loss_cls(y1_input, classifier[0], detector_selected_time) + \
-            losses.class_loss_regr(num_classes-1)(y2_input, classifier[1], detector_selected_time)
+detector_clf_loss = losses.class_loss_cls(y1_input, classifier[0], detector_selected_time)
 
-detector_loss_summary = tf.summary.scalar('detector_loss', detector_loss)
+detector_reg_loss = losses.class_loss_regr(num_classes-1)(y2_input, classifier[1], detector_selected_time)
+
+detector_loss = detector_reg_loss + detector_clf_loss
+
+detector_summary = [tf.summary.scalar('detector_loss',detector_loss),tf.summary.scalar('detector_clf_loss', detector_clf_loss),tf.summary.scalar('detector_reg_loss',detector_reg_loss)]
+
+detector_loss_summary = tf.summary.merge(detector_summary)
 
 writer = tf.summary.FileWriter('/tmp/clstm')
 

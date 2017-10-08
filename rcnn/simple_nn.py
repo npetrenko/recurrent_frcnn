@@ -16,7 +16,7 @@ from .clstm import clstm
 from rcnn.RoiPoolingConv import RoiPoolingConv
 from rcnn.FixedBatchNormalization import FixedBatchNormalization
 
-nb_clstm_filter = 40
+nb_clstm_filter = 64
 
 def get_img_output_length(width, height):
     def get_output_length(input_length):
@@ -30,11 +30,10 @@ def nn_base(trainable=False):
         bn_axis = 3
 
         x = input_tensor
-        x = Convolution2D(128, (2, 2), name='conv1', padding='same', trainable = trainable, activation='relu')(x)
-        x = Convolution2D(128, (2, 2), name='conv2', padding='same', trainable = trainable, activation='relu')(x)
-        x = Convolution2D(128, (2, 2), name='conv3', padding='same', trainable = trainable, activation='relu')(x)
-        x = Convolution2D(128, (2, 2), name='conv4', padding='same', trainable = trainable, activation='relu')(x)
-        x = Convolution2D(64, (2, 2), name='conv5', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(32, (2, 2), name='conv1', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(32, (2, 2), name='conv2', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(32, (2, 2), name='conv4', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(32, (2, 2), name='conv5', padding='same', trainable = trainable, activation='relu')(x)
         return x
     return f
 
@@ -70,7 +69,7 @@ def build_shared(video_input):
 
         shared_layers = time_broadcast(base, video_input)
 
-        num_channels = 64
+        num_channels = 32
 
         shared_layers = clstm(shared_layers,num_channels,nb_clstm_filter,3, '1')
         shared_layers = clstm(shared_layers,nb_clstm_filter,nb_clstm_filter,3, '2')
