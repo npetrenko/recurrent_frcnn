@@ -38,7 +38,7 @@ def clstm(x, num_channels, n_hidden, filtersize, name):
             with tf.variable_scope('3', reuse=True):
                 tmp0 = cnn(x, num_channels, n_hidden, filtersize, '0')
                 tmp1 = cnn(st_1, n_hidden, n_hidden, filtersize, '1')
-            g = tf.sigmoid(tmp0 + tmp1)
+            g = tf.tanh(tmp0 + tmp1)
 
             ct = ct_1*f + g*i
 

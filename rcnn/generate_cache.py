@@ -28,3 +28,4 @@ def create_cache(videos, class_count, C, img_length_calc_function, n_jobs):
     frames = [(x, class_count, C, img_length_calc_function) for video in videos for x in video]
     pool = Pool(processes=n_jobs)
     pool.map(pack_frame, frames)
+    pool.close()

@@ -128,9 +128,9 @@ def predict_rpn(X):
     return sess.run(rpn, {video_input: X})
 
 def generate_train_op(loss):
-    optimizer = tf.train.AdamOptimizer(0.001)
+    optimizer = tf.train.AdamOptimizer(0.00002)
     gvs = optimizer.compute_gradients(loss)
-    capped = [(tf.clip_by_value(grad, -5, 5), var) for grad, var in gvs if grad is not None]
+    capped = [(tf.clip_by_value(grad, -30, 30), var) for grad, var in gvs if grad is not None]
     return optimizer.apply_gradients(capped)
 
 rpn_train_op = generate_train_op(rpn_loss)
@@ -162,6 +162,8 @@ vis = True
 
 init = tf.global_variables_initializer()
 sess.run(init)
+
+writer.add_graph(sess.graph)
 
 saver = tf.train.Saver()
 

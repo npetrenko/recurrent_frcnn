@@ -30,16 +30,13 @@ def nn_base(trainable=False):
         bn_axis = 3
 
         x = input_tensor
-        x = Convolution2D(32, (2, 2), name='conv1', padding='same', trainable = trainable, activation='relu')(x)
-        x = Convolution2D(32, (2, 2), name='conv2', padding='same', trainable = trainable, activation='relu')(x)
-        x = Convolution2D(32, (2, 2), name='conv4', padding='same', trainable = trainable, activation='relu')(x)
-        x = Convolution2D(32, (2, 2), name='conv5', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(32, (8, 8), name='conv1', padding='same', trainable = trainable, activation='relu')(x)
         return x
     return f
 
 def rpn(num_anchors):
     def f(base_layers):
-        x = Convolution2D(24, (2, 2), padding='same', activation='relu', name='rpn_conv1')(base_layers)
+        x = Convolution2D(32, (2, 2), padding='same', activation='relu', name='rpn_conv1')(base_layers)
 
         x_class = Convolution2D(num_anchors, (1, 1), activation='linear', padding='same', name='rpn_out_class')(x)
         x_regr = Convolution2D(num_anchors * 4, (1, 1), activation='linear', padding='same', name='rpn_out_regress')(x)
@@ -71,8 +68,8 @@ def build_shared(video_input):
 
         num_channels = 32
 
-        shared_layers = clstm(shared_layers,num_channels,nb_clstm_filter,3, '1')
-        shared_layers = clstm(shared_layers,nb_clstm_filter,nb_clstm_filter,3, '2')
+        shared_layers = clstm(shared_layers,num_channels,nb_clstm_filter,6, '1')
+        shared_layers = clstm(shared_layers,nb_clstm_filter,nb_clstm_filter,6, '2')
     return shared_layers
 
 def build_rpn(x, num_anchors):

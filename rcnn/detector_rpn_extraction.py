@@ -25,23 +25,26 @@ def extract_features(P_rpn, C, img_data):
     else:
         pos_samples = []
     
-    if C.num_rois > 1:
-        if len(pos_samples) < C.num_rois//2:
+    try:
+        if C.num_rois > 1:
+            if len(pos_samples) < C.num_rois//2:
+                selected_pos_samples = pos_samples.tolist()
+            else:
+                selected_pos_samples = np.random.choice(pos_samples, C.num_rois//2, replace=False).tolist()
+            try:
+                selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples), replace=False).tolist()
+            except:
+                selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples), replace=True).tolist()
+            sel_samples = selected_pos_samples + selected_neg_samples
+        else:
+            # in the extreme case where num_rois = 1, we pick a random pos or neg sample
             selected_pos_samples = pos_samples.tolist()
-        else:
-            selected_pos_samples = np.random.choice(pos_samples, C.num_rois//2, replace=False).tolist()
-        try:
-            selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples), replace=False).tolist()
-        except:
-            selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples), replace=True).tolist()
-        sel_samples = selected_pos_samples + selected_neg_samples
-    else:
-        # in the extreme case where num_rois = 1, we pick a random pos or neg sample
-        selected_pos_samples = pos_samples.tolist()
-        selected_neg_samples = neg_samples.tolist()
-        if np.random.randint(0, 2):
-            sel_samples = random.choice(neg_samples)
-        else:
-            sel_samples = random.choice(pos_samples)
+            selected_neg_samples = neg_samples.tolist()
+            if np.random.randint(0, 2):
+                sel_samples = random.choice(neg_samples)
+            else:
+                sel_samples = random.choice(pos_samples)
+    except:
+        return None, None
 
     return X2[:, sel_samples, :], [Y1[:, sel_samples, :], Y2[:, sel_samples, :]]
