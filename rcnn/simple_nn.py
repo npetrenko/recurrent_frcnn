@@ -17,6 +17,7 @@ from rcnn.RoiPoolingConv import RoiPoolingConv
 from rcnn.FixedBatchNormalization import FixedBatchNormalization
 
 nb_clstm_filter = 64
+shared_dim = nb_clstm_filter
 
 def get_img_output_length(width, height):
     def get_output_length(input_length):
@@ -30,7 +31,8 @@ def nn_base(trainable=False):
         bn_axis = 3
 
         x = input_tensor
-        x = Convolution2D(32, (8, 8), name='conv1', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(32, (4, 4), name='conv1', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(32, (4, 4), name='conv2', padding='same', trainable = trainable, activation='relu')(x)
         return x
     return f
 
@@ -68,8 +70,8 @@ def build_shared(video_input):
 
         num_channels = 32
 
-        shared_layers = clstm(shared_layers,num_channels,nb_clstm_filter,6, '1')
-        shared_layers = clstm(shared_layers,nb_clstm_filter,nb_clstm_filter,6, '2')
+        shared_layers = clstm(shared_layers,num_channels,nb_clstm_filter,6, 'forward_clstm')
+        shared_layers = clstm(shared_layers[:,::-1],nb_clstm_filter,nb_clstm_filter,6, 'backward_cltsm')[:,::-1]
     return shared_layers
 
 def build_rpn(x, num_anchors):

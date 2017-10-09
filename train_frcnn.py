@@ -19,6 +19,8 @@ from rcnn.clstm import clstm
 from rcnn import detector_rpn_extraction
 from rcnn.generate_cache import create_cache
 
+os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+
 sess = tf.Session()
 K.set_session(sess)
 
@@ -30,7 +32,9 @@ num_rois = 32
 num_epochs = 2000
 config_filename = 'config.pickle'
 output_weight_path = './save_dir/rpn_only.sv'
-n_jobs = 8
+n_jobs = 40
+
+tensorboard_dir = '/tmp/clstm'
 
 from rcnn.video_parser import get_data
 
@@ -43,16 +47,21 @@ C.rot_90 = False
 C.model_path = output_weight_path
 C.num_rois = int(num_rois)
 
+
 from rcnn import simple_nn as nn
 C.network = 'simple_nn'
 
+# parse video data
 all_videos, classes_count, class_mapping = get_data(video_path, annotation_path)
 
+
+# if it fails to find a folder in rpn_tmp it will generate the whole cache again
 if not os.path.exists(os.path.join(C.tmp_dir, 'rpn_tmp', '0')):
     print('Cache not found! Creating cache')
     t0 = time.time()
     create_cache(all_videos, classes_count, C, nn.get_img_output_length, n_jobs=n_jobs)
     print('Generating cache took {} minutes'.format((time.time() - t0)/60))
+
 
 if 'bg' not in classes_count:
     classes_count['bg'] = 0
@@ -68,16 +77,16 @@ print('Training images per class:')
 pprint.pprint(classes_count)
 print('Num classes (including bg) = {}'.format(len(classes_count)))
 
+
 with open(config_filename, 'wb') as config_f:
     pickle.dump(C,config_f)
     print('Config has been written to {}, and can be loaded when testing to ensure correct results'.format(config_filename))
 
-#random.shuffle(all_videos)
+#random.shuffle(all_videos) # maybe we should shuffle them all sometimes?
 
 num_videos = len(all_videos)
 
 print('Num samples {}'.format(num_videos))
-
 
 data_gen = data_generators.video_streamer(all_videos, classes_count, C, nn.get_img_output_length, K.image_dim_ordering(), mode='train')
 
@@ -97,16 +106,16 @@ shared = nn.build_shared(video_input)
 
 rpn = nn.build_rpn(shared, num_anchors)
 
-
 classifier = nn.classifier(roi_input, C.num_rois, nb_classes=num_classes, trainable=True)(shared[:, detector_selected_time])
 
-
 rpn_clf_loss = losses.rpn_loss_cls(num_anchors)(rpn_target_cls, rpn[0])
-rpn_loss = losses.rpn_loss_regr(num_anchors)(rpn_target_reg, rpn[1]) \
-        + rpn_clf_loss
+rpn_reg_loss = losses.rpn_loss_regr(num_anchors)(rpn_target_reg, rpn[1])
+
+rpn_loss = rpn_clf_loss + rpn_reg_loss
 
 rpn_summary = [tf.summary.scalar('rpn_loss', rpn_loss), tf.summary.scalar('rpn_clf_loss', rpn_clf_loss),
-            tf.summary.scalar('rpn_reg_loss', rpn_loss - rpn_clf_loss)]
+            tf.summary.scalar('rpn_reg_loss', rpn_reg_loss)]
+
 rpn_summary = tf.summary.merge(rpn_summary)
 
 detector_clf_loss = losses.class_loss_cls(y1_input, classifier[0], detector_selected_time)
@@ -115,26 +124,29 @@ detector_reg_loss = losses.class_loss_regr(num_classes-1)(y2_input, classifier[1
 
 detector_loss = detector_reg_loss + detector_clf_loss
 
-detector_summary = [tf.summary.scalar('detector_loss',detector_loss),tf.summary.scalar('detector_clf_loss', detector_clf_loss),tf.summary.scalar('detector_reg_loss',detector_reg_loss)]
+detector_summary = [tf.summary.scalar('detector_loss',detector_loss),
+                    tf.summary.scalar('detector_clf_loss', detector_clf_loss),
+                    tf.summary.scalar('detector_reg_loss',detector_reg_loss)]
 
 detector_loss_summary = tf.summary.merge(detector_summary)
 
 writer = tf.summary.FileWriter('/tmp/clstm')
 
+# convert logits to activations
 rpn[0] = tf.nn.sigmoid(rpn[0])
 classifier[0] = tf.nn.softmax(classifier[0])
 
 def predict_rpn(X):
     return sess.run(rpn, {video_input: X})
 
-def generate_train_op(loss):
-    optimizer = tf.train.AdamOptimizer(0.00002)
+def generate_train_op(loss, lr):
+    optimizer = tf.train.AdamOptimizer(lr)
     gvs = optimizer.compute_gradients(loss)
     capped = [(tf.clip_by_value(grad, -30, 30), var) for grad, var in gvs if grad is not None]
     return optimizer.apply_gradients(capped)
 
-rpn_train_op = generate_train_op(rpn_loss)
-detector_train_op = generate_train_op(detector_loss)
+rpn_train_op = generate_train_op(rpn_loss, 0.001)
+detector_train_op = generate_train_op(detector_loss, 0.00001)
 
 def run_rpn(X, Y):
     summary, _ = sess.run([rpn_summary, rpn_train_op], {video_input: X, rpn_target_cls: Y[0], rpn_target_reg: Y[1]}) 
@@ -203,7 +215,7 @@ for epoch_num in range(num_epochs):
 
             ROI, YY = detector_rpn_extraction.extract_features(P_rpn, C, img_data[0][timestep])
 
-            if iii % 4 == 0:
+            if iii % 20 == 0:
                 saver.save(sess, output_weight_path)
 
             if ROI is None:

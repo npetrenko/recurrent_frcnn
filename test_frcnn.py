@@ -4,48 +4,51 @@ import cv2
 import numpy as np
 import sys
 import pickle
-from optparse import OptionParser
 import time
 from keras_frcnn import config
 from keras import backend as K
 from keras.layers import Input
 from keras.models import Model
-from keras_frcnn import roi_helpers
+from rcnn import roi_helpers
+import tensorflow as tf
 
 sys.setrecursionlimit(40000)
 
-parser = OptionParser()
+test_path = './test_video'
 
-parser.add_option("-p", "--path", dest="test_path", help="Path to test data.")
-parser.add_option("-n", "--num_rois", type="int", dest="num_rois",
-				help="Number of ROIs per iteration. Higher means more memory use.", default=32)
-parser.add_option("--config_filename", dest="config_filename", help=
-				"Location to read the metadata related to the training (generated when training).",
-				default="config.pickle")
-parser.add_option("--network", dest="network", help="Base network to use. Supports vgg or resnet50.", default='resnet50')
+num_rois = 32
+config_filename = './config.pickle'
+save_path = './save_dir/rpn_only.sv'
 
-(options, args) = parser.parse_args()
+sess = tf.Session()
+K.set_session(sess)
 
-if not options.test_path:   # if filename is not given
-	parser.error('Error: path to test data must be specified. Pass --path to command line')
-
-
-config_output_filename = options.config_filename
-
-with open(config_output_filename, 'rb') as f_in:
+with open(config_filename, 'rb') as f_in:
 	C = pickle.load(f_in)
 
-if C.network == 'resnet50':
-	import keras_frcnn.resnet as nn
-elif C.network == 'vgg':
-	import keras_frcnn.vgg as nn
+from rcnn import simple_nn as nn
+
+num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
+
+video_input = tf.placeholder(tf.float32, [None,None,None,None,3], name='video_input')
+roi_input = tf.placeholder(tf.int64, [None,None,4], name='roi_input')
+feature_map_input = tf.placeholder(tf.float32, [None, None, nn.shared_dim])
+
+shared = nn.build_shared(video_input)
+
+rpn = nn.build_rpn(shared, num_anchors)
+
+classifier = nn.classifier(roi_input, C.num_rois, nb_classes=num_classes, trainable=True)(feature_map_input)
+
+rpn[0] = tf.nn.sigmoid(rpn[0])
+classifier[0] = tf.nn.softmax(classifier[0])
 
 # turn off any data augmentation at test time
 C.use_horizontal_flips = False
 C.use_vertical_flips = False
 C.rot_90 = False
 
-img_path = options.test_path
+class_mapping = C.class_mapping
 
 def format_img_size(img, C):
 	""" formats the image size based on config """
@@ -91,8 +94,6 @@ def get_real_coordinates(ratio, x1, y1, x2, y2):
 
 	return (real_x1, real_y1, real_x2 ,real_y2)
 
-class_mapping = C.class_mapping
-
 if 'bg' not in class_mapping:
 	class_mapping['bg'] = len(class_mapping)
 
@@ -101,43 +102,18 @@ print(class_mapping)
 class_to_color = {class_mapping[v]: np.random.randint(0, 255, 3) for v in class_mapping}
 C.num_rois = int(options.num_rois)
 
-if C.network == 'resnet50':
-	num_features = 1024
-elif C.network == 'vgg':
-	num_features = 512
-
-if K.image_dim_ordering() == 'th':
-	input_shape_img = (3, None, None)
-	input_shape_features = (num_features, None, None)
-else:
-	input_shape_img = (None, None, 3)
-	input_shape_features = (None, None, num_features)
-
-
-img_input = Input(shape=input_shape_img)
-roi_input = Input(shape=(C.num_rois, 4))
-feature_map_input = Input(shape=input_shape_features)
-
 # define the base network (resnet here, can be VGG, Inception, etc)
-shared_layers = nn.nn_base(img_input, trainable=True)
+shared_layers = nn.build_shared(video_input)
 
 # define the RPN, built on the base layers
 num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
-rpn_layers = nn.rpn(shared_layers, num_anchors)
+rpn_layers = nn.build_rpn(shared_layers, num_anchors)
 
-classifier = nn.classifier(feature_map_input, roi_input, C.num_rois, nb_classes=len(class_mapping), trainable=True)
+classifier = nn.classifier(roi_input, C.num_rois, nb_classes=len(class_mapping), trainable=True)(feature_map_input)
 
-model_rpn = Model(img_input, rpn_layers)
-model_classifier_only = Model([feature_map_input, roi_input], classifier)
-
-model_classifier = Model([feature_map_input, roi_input], classifier)
-
-print('Loading weights from {}'.format(C.model_path))
-model_rpn.load_weights(C.model_path, by_name=True)
-model_classifier.load_weights(C.model_path, by_name=True)
-
-model_rpn.compile(optimizer='sgd', loss='mse')
-model_classifier.compile(optimizer='sgd', loss='mse')
+print('Loading weights from {}'.format(save_path))
+saver = tf.train.Saver()
+saver.restore(sess, save_path)
 
 all_imgs = []
 
