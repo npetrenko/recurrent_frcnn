@@ -84,6 +84,7 @@ ENV/
 
 tmp/
 save_dir/
+masks/
 experiment_save/
 
 *.pickle
