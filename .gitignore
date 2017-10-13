@@ -84,6 +84,7 @@ ENV/
 
 tmp/
 save_dir/
+experiment_save/
 
 *.pickle
 *.npy
