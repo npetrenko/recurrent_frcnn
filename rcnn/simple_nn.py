@@ -21,7 +21,7 @@ shared_dim = nb_clstm_filter
 
 def get_img_output_length(width, height):
     def get_output_length(input_length):
-        return input_length
+        return input_length//4
     return get_output_length(width), get_output_length(height) 
 
 
@@ -33,6 +33,11 @@ def nn_base(trainable=False):
         x = input_tensor
         x = Convolution2D(32, (4, 4), name='conv1', padding='same', trainable = trainable, activation='relu')(x)
         x = Convolution2D(32, (4, 4), name='conv2', padding='same', trainable = trainable, activation='relu')(x)
+        x = MaxPooling2D((2,2))(x)
+        x = Convolution2D(32, (4, 4), name='conv3', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(32, (4, 4), name='conv4', padding='same', trainable = trainable, activation='relu')(x)
+        x = MaxPooling2D((2,2))(x)
+        x = Convolution2D(32, (4, 4), name='conv5', padding='same', trainable = trainable, activation='relu')(x)
         return x
     return f
 

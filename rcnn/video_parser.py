@@ -16,7 +16,8 @@ def get_data(videos_path, annotations_path):
     print('Parsing annotation files')
     
     for input_path in annots:
-        frame_path = os.path.join(videos_path, input_path.split('/')[-1].split('.')[0], '{}.jpg')
+        frame_path = os.path.join(videos_path, input_path.split('/')[-1].split('.')[0], 'Screen_{}.gif')
+        #print(frame_path)
         frames = {}
         last_frame = -1
         with open(input_path,'r') as f:

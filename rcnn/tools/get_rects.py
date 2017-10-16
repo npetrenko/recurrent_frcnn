@@ -3,9 +3,15 @@ from multiprocessing import Pool
 import cv2
 import numpy as np
 
-mask_source_dir = './masks'
+mask_source_dir = './crowdgen_data/Color/'
 annotations_output_dir = './annotations'
 n_jobs = 4
+
+prefix = 'Screen_'
+
+def remove_prefix(line):
+    if line.startswith(prefix):
+        return line[len(prefix):]
 
 n_colors = 15
 
@@ -60,4 +66,4 @@ for video in videos:
     with open(output_name, 'w') as f:
         for bboxes, ix in zip(frame_bboxes, frame_nums):
             for bbox in bboxes:
-                f.write(','.join(map(str, [ix] + bbox)) + '\n')
+                f.write(','.join(map(str, [remove_prefix(ix)] + bbox)) + '\n')

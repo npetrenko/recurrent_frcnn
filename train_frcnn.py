@@ -26,13 +26,13 @@ K.set_session(sess)
 
 sys.setrecursionlimit(40000)
 
-video_path = './videos'
+video_path = './crowdgen_data/Main/'
 annotation_path = './annotations'
-num_rois = 64
+num_rois = 32
 num_epochs = 2000
 config_filename = 'config.pickle'
 output_weight_path = './experiment_save/with_det'#'./save_dir/rpn_only.sv'
-n_jobs = 40
+n_jobs = 4
 
 tensorboard_dir = '/tmp/clstm'
 
@@ -145,8 +145,8 @@ def generate_train_op(loss, lr):
     capped = [(tf.clip_by_value(grad, -30, 30), var) for grad, var in gvs if grad is not None]
     return optimizer.apply_gradients(capped)
 
-rpn_train_op = generate_train_op(rpn_loss, 0.00005)
-detector_train_op = generate_train_op(detector_loss, 0.00005)
+rpn_train_op = generate_train_op(rpn_loss, 0.0001)
+detector_train_op = generate_train_op(detector_loss, 0.0001)
 
 def run_rpn(X, Y):
     summary, _ = sess.run([rpn_summary, rpn_train_op], {video_input: X, rpn_target_cls: Y[0], rpn_target_reg: Y[1]}) 
