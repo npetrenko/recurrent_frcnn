@@ -34,10 +34,10 @@ def nn_base(trainable=False):
         x = Convolution2D(32, (4, 4), name='conv1', padding='same', trainable = trainable, activation='relu')(x)
         x = Convolution2D(32, (4, 4), name='conv2', padding='same', trainable = trainable, activation='relu')(x)
         x = MaxPooling2D((2,2))(x)
-        x = Convolution2D(32, (4, 4), name='conv3', padding='same', trainable = trainable, activation='relu')(x)
-        x = Convolution2D(32, (4, 4), name='conv4', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(64, (4, 4), name='conv3', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(128, (4, 4), name='conv4', padding='same', trainable = trainable, activation='relu')(x)
         x = MaxPooling2D((2,2))(x)
-        x = Convolution2D(32, (4, 4), name='conv5', padding='same', trainable = trainable, activation='relu')(x)
+        x = Convolution2D(128, (4, 4), name='conv5', padding='same', trainable = trainable, activation='relu')(x)
         return x
     return f
 
@@ -73,7 +73,7 @@ def build_shared(video_input):
 
         shared_layers = time_broadcast(base, video_input)
 
-        num_channels = 32
+        num_channels = 128
 
         shared_layers = clstm(shared_layers,num_channels,nb_clstm_filter,6, 'forward_clstm')
         shared_layers = clstm(shared_layers[:,::-1],nb_clstm_filter,nb_clstm_filter,6, 'backward_cltsm')[:,::-1]

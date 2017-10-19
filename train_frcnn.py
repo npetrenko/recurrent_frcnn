@@ -19,7 +19,7 @@ from rcnn.clstm import clstm
 from rcnn import detector_rpn_extraction
 from rcnn.generate_cache import create_cache
 
-os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+os.environ['CUDA_VISIBLE_DEVICES'] = "1"
 
 sess = tf.Session()
 K.set_session(sess)
@@ -32,9 +32,9 @@ num_rois = 32
 num_epochs = 2000
 config_filename = 'config.pickle'
 output_weight_path = './experiment_save/with_det'#'./save_dir/rpn_only.sv'
-n_jobs = 4
+n_jobs = 40
 
-tensorboard_dir = '/tmp/clstm'
+tensorboard_dir = '/tmp/clstm1'
 
 from rcnn.video_parser import get_data
 
@@ -52,7 +52,7 @@ from rcnn import simple_nn as nn
 C.network = 'simple_nn'
 
 # parse video data
-all_videos, classes_count, class_mapping = get_data(video_path, annotation_path)
+all_videos, classes_count, class_mapping = get_data(video_path, annotation_path, form='gif')
 
 
 # if it fails to find a folder in rpn_tmp it will generate the whole cache again
@@ -130,7 +130,7 @@ detector_summary = [tf.summary.scalar('detector_loss',detector_loss),
 
 detector_loss_summary = tf.summary.merge(detector_summary)
 
-writer = tf.summary.FileWriter('/tmp/clstm')
+writer = tf.summary.FileWriter(tensorboard_dir)
 
 # convert logits to activations
 rpn[0] = tf.nn.sigmoid(rpn[0])
@@ -145,8 +145,8 @@ def generate_train_op(loss, lr):
     capped = [(tf.clip_by_value(grad, -30, 30), var) for grad, var in gvs if grad is not None]
     return optimizer.apply_gradients(capped)
 
-rpn_train_op = generate_train_op(rpn_loss, 0.0001)
-detector_train_op = generate_train_op(detector_loss, 0.0001)
+rpn_train_op = generate_train_op(rpn_loss, 0.00003)
+detector_train_op = generate_train_op(detector_loss, 0.00003)
 
 def run_rpn(X, Y):
     summary, _ = sess.run([rpn_summary, rpn_train_op], {video_input: X, rpn_target_cls: Y[0], rpn_target_reg: Y[1]}) 
@@ -215,7 +215,7 @@ for epoch_num in range(num_epochs):
 
             ROI, YY = detector_rpn_extraction.extract_features(P_rpn, C, img_data[0][timestep])
 
-            if iii % 20 == 0:
+            if iii % 200 == 0:
                 saver.save(sess, output_weight_path)
 
             if ROI is None:

@@ -321,9 +321,8 @@ def pack(C, fname, x, y, d):
     with open(path, 'wb') as f:
         pickle.dump([x,y,d], f)
 
-def video_streamer(videos, class_count, C, img_length_calc_function, backend, mode='train'):
+def video_streamer(videos, class_count, C, img_length_calc_function, backend, mode='train', frame_batchsize=3):
     video_batchsize = 1
-    frame_batchsize = 3
 
     last_b = 4*(len(videos)//video_batchsize)
     videos = videos + videos[:video_batchsize - len(videos)%video_batchsize]
@@ -344,11 +343,15 @@ def video_streamer(videos, class_count, C, img_length_calc_function, backend, mo
 
             for frame in video_info[sframe:sframe + frame_batchsize]:
                 try:
-                    x, y, d = extract(C, frame['filepath'])
+                    if mode=='train':
+                        x, y, d = extract(C, frame['filepath'])
+                    else:
+                        raise FileNotFoundError
                 except FileNotFoundError:
                     x, y, d = get_anchor(frame, class_count, C, img_length_calc_function, backend, mode=mode)
 
-                    pack(C, frame['filepath'], x, y, d)
+                    if mode=='train':
+                        pack(C, frame['filepath'], x, y, d)
 
                 X[-1].append(x[0])
                 Y1[-1].append(y[0][0])

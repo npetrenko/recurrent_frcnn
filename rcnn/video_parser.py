@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import os
 
-def get_data(videos_path, annotations_path):
+def get_data(videos_path, annotations_path, form='png'):
     found_bg = False
     all_videos = []
 
@@ -16,7 +16,7 @@ def get_data(videos_path, annotations_path):
     print('Parsing annotation files')
     
     for input_path in annots:
-        frame_path = os.path.join(videos_path, input_path.split('/')[-1].split('.')[0], 'Screen_{}.gif')
+        frame_path = os.path.join(videos_path, input_path.split('/')[-1].split('.')[0], 'Screen_{}.' + form)
         #print(frame_path)
         frames = {}
         last_frame = -1
