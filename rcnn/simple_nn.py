@@ -6,10 +6,11 @@ from __future__ import absolute_import
 
 import tensorflow as tf
 
-from keras.layers import Input, Add, Dense, Activation, Flatten, Convolution2D, MaxPooling2D, ZeroPadding2D, \
+from keras.layers import Input, Conv2D, Add, Dense, Activation, Flatten, Convolution2D, MaxPooling2D, ZeroPadding2D, \
     AveragePooling2D, TimeDistributed
 
 from keras import backend as K
+from keras.models import Model
 
 from .clstm import clstm
 
@@ -21,24 +22,57 @@ shared_dim = nb_clstm_filter
 
 def get_img_output_length(width, height):
     def get_output_length(input_length):
-        return input_length//4
+        return input_length//16
     return get_output_length(width), get_output_length(height) 
 
 
-def nn_base(trainable=False):
+def nn_base(weights=None, stop_gradient=False):
     def f(input_tensor):
+        input_shape = (None, None, 3)
+        img_input = Input(tensor=input_tensor, shape=input_shape)
 
-        bn_axis = 3
+        if K.image_dim_ordering() == 'tf':
+            bn_axis = 3
+        else:
+            bn_axis = 1
 
-        x = input_tensor
-        x = Convolution2D(32, (4, 4), name='conv1', padding='same', trainable = trainable, activation='relu')(x)
-        x = Convolution2D(32, (4, 4), name='conv2', padding='same', trainable = trainable, activation='relu')(x)
-        x = MaxPooling2D((2,2))(x)
-        x = Convolution2D(64, (4, 4), name='conv3', padding='same', trainable = trainable, activation='relu')(x)
-        x = Convolution2D(128, (4, 4), name='conv4', padding='same', trainable = trainable, activation='relu')(x)
-        x = MaxPooling2D((2,2))(x)
-        x = Convolution2D(128, (4, 4), name='conv5', padding='same', trainable = trainable, activation='relu')(x)
+        # Block 1
+        x = Conv2D(64, (3, 3), activation='relu', padding='same', name='block1_conv1')(img_input)
+        x = Conv2D(64, (3, 3), activation='relu', padding='same', name='block1_conv2')(x)
+        x = MaxPooling2D((2, 2), strides=(2, 2), name='block1_pool')(x)
+
+        # Block 2
+        x = Conv2D(128, (3, 3), activation='relu', padding='same', name='block2_conv1')(x)
+        x = Conv2D(128, (3, 3), activation='relu', padding='same', name='block2_conv2')(x)
+        x = MaxPooling2D((2, 2), strides=(2, 2), name='block2_pool')(x)
+
+        # Block 3
+        x = Conv2D(256, (3, 3), activation='relu', padding='same', name='block3_conv1')(x)
+        x = Conv2D(256, (3, 3), activation='relu', padding='same', name='block3_conv2')(x)
+        x = Conv2D(256, (3, 3), activation='relu', padding='same', name='block3_conv3')(x)
+        x = MaxPooling2D((2, 2), strides=(2, 2), name='block3_pool')(x)
+
+        # Block 4
+        x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block4_conv1')(x)
+        x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block4_conv2')(x)
+        x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block4_conv3')(x)
+        x = MaxPooling2D((2, 2), strides=(2, 2), name='block4_pool')(x)
+
+        # Block 5
+        x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv1')(x)
+        x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv2')(x)
+        x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv3')(x)
+        # x = MaxPooling2D((2, 2), strides=(2, 2), name='block5_pool')(x)
+
+        if weights is not None:
+            model = Model(img_input, x)
+            model.load_weights(weights)
+
+        if stop_gradient:
+            x = tf.stop_gradient(x)
+
         return x
+
     return f
 
 def rpn(num_anchors):
@@ -67,13 +101,13 @@ def time_broadcast(f, x):
     y = tf.reshape(y, [num_videos, num_frames, w, h, c])
     return y
 
-def build_shared(video_input):
+def build_shared(video_input, weights, stop_gradient):
     with tf.name_scope('shared_layers'):
-        base = nn_base(trainable=True)
+        base = nn_base(weights=weights, stop_gradient=stop_gradient)
 
         shared_layers = time_broadcast(base, video_input)
 
-        num_channels = 128
+        num_channels = 512
 
         shared_layers = clstm(shared_layers,num_channels,nb_clstm_filter,6, 'forward_clstm')
         shared_layers = clstm(shared_layers[:,::-1],nb_clstm_filter,nb_clstm_filter,6, 'backward_cltsm')[:,::-1]

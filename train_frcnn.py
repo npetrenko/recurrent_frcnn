@@ -26,17 +26,20 @@ K.set_session(sess)
 
 sys.setrecursionlimit(40000)
 
-video_path = './crowdgen_data/Main/'
-annotation_path = './annotations'
+video_path = '/tmp/MOT16/'
+#annotation_path = './annotations'
 num_rois = 32
 num_epochs = 2000
 config_filename = 'config.pickle'
+
+pretrained_base = './vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5'
 output_weight_path = './experiment_save/with_det'#'./save_dir/rpn_only.sv'
-n_jobs = 40
+n_jobs = 4
 
 tensorboard_dir = '/tmp/clstm1'
 
-from rcnn.video_parser import get_data
+#from rcnn.video_parser import get_data
+from rcnn.MOT_parser import get_data
 
 C = config.Config()
 
@@ -52,7 +55,7 @@ from rcnn import simple_nn as nn
 C.network = 'simple_nn'
 
 # parse video data
-all_videos, classes_count, class_mapping = get_data(video_path, annotation_path, form='gif')
+all_videos, classes_count, class_mapping = get_data(video_path, no_zero_frame=True,part='train', form='jpg')
 
 
 # if it fails to find a folder in rpn_tmp it will generate the whole cache again
@@ -102,7 +105,7 @@ roi_input = tf.placeholder(tf.int64, [None,None,4], name='roi_input')
 y1_input = tf.placeholder(tf.float32, [None,None,num_classes], name='detector_clf_input')
 y2_input = tf.placeholder(tf.float32, [None,None,(num_classes-1)*4*2], name='detector_regr_input')
 
-shared = nn.build_shared(video_input)
+shared = nn.build_shared(video_input, weights=pretrained_base, stop_gradient=True)
 
 rpn = nn.build_rpn(shared, num_anchors)
 
