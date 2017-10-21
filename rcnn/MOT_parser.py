@@ -26,7 +26,10 @@ def get_data(mot_path, part='train', form='png'):
         with open(os.path.join(dataset, 'gt/gt.txt'),'r') as f:
             for line in f:
                 line_split = line.strip().split(',')
-                frameix,x1,y1,x2,y2 = map(int, line_split[0:1] + line_split[2:6])
+                frameix,x1,y1,w,h = map(int, line_split[0:1] + line_split[2:6])
+
+                x2 = x1 + w
+                y2 = y1 + h
 
                 class_name = 'bbox'
 

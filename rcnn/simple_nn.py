@@ -22,19 +22,14 @@ shared_dim = nb_clstm_filter
 
 def get_img_output_length(width, height):
     def get_output_length(input_length):
-        return input_length//16
+        return input_length//8
     return get_output_length(width), get_output_length(height) 
 
 
-def nn_base(weights=None, stop_gradient=False):
+def nn_base(stop_gradient=False):
     def f(input_tensor):
         input_shape = (None, None, 3)
         img_input = Input(tensor=input_tensor, shape=input_shape)
-
-        if K.image_dim_ordering() == 'tf':
-            bn_axis = 3
-        else:
-            bn_axis = 1
 
         # Block 1
         x = Conv2D(64, (3, 3), activation='relu', padding='same', name='block1_conv1')(img_input)
@@ -51,6 +46,7 @@ def nn_base(weights=None, stop_gradient=False):
         x = Conv2D(256, (3, 3), activation='relu', padding='same', name='block3_conv2')(x)
         x = Conv2D(256, (3, 3), activation='relu', padding='same', name='block3_conv3')(x)
         x = MaxPooling2D((2, 2), strides=(2, 2), name='block3_pool')(x)
+        r = x
 
         # Block 4
         x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block4_conv1')(x)
@@ -64,14 +60,14 @@ def nn_base(weights=None, stop_gradient=False):
         x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv3')(x)
         # x = MaxPooling2D((2, 2), strides=(2, 2), name='block5_pool')(x)
 
-        if weights is not None:
-            model = Model(img_input, x)
-            model.load_weights(weights)
+        model = Model(img_input, x)
 
         if stop_gradient:
-            x = tf.stop_gradient(x)
+            r = tf.stop_gradient(r)
+        x = r
+        x = Conv2D(64, (1, 1), activation='relu', padding='same', name='downsample_block')(x)
 
-        return x
+        return x, model
 
     return f
 
@@ -94,24 +90,24 @@ def time_broadcast(f, x):
 
     time_flat.set_shape([None,None,None,x.shape[-1]])
 
-    y = f(time_flat)
+    y, model = f(time_flat)
 
     shape = tf.shape(y)
     _, w, h, c = [shape[i] for i in range(4)]
     y = tf.reshape(y, [num_videos, num_frames, w, h, c])
-    return y
+    return y, model
 
-def build_shared(video_input, weights, stop_gradient):
+def build_shared(video_input, stop_gradient):
     with tf.name_scope('shared_layers'):
-        base = nn_base(weights=weights, stop_gradient=stop_gradient)
+        base = nn_base(stop_gradient=stop_gradient)
 
-        shared_layers = time_broadcast(base, video_input)
+        shared_layers, base_model = time_broadcast(base, video_input)
 
-        num_channels = 512
+        num_channels = 64
 
-        shared_layers = clstm(shared_layers,num_channels,nb_clstm_filter,6, 'forward_clstm')
-        shared_layers = clstm(shared_layers[:,::-1],nb_clstm_filter,nb_clstm_filter,6, 'backward_cltsm')[:,::-1]
-    return shared_layers
+        shared_layers = clstm(shared_layers,num_channels,nb_clstm_filter,3, 'forward_clstm')
+        shared_layers = clstm(shared_layers[:,::-1],nb_clstm_filter,nb_clstm_filter,3, 'backward_cltsm')[:,::-1]
+    return shared_layers, base_model
 
 def build_rpn(x, num_anchors):
     with tf.name_scope('RPN'):

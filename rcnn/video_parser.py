@@ -16,7 +16,7 @@ def get_data(videos_path, annotations_path, form='png'):
     print('Parsing annotation files')
     
     for input_path in annots:
-        frame_path = os.path.join(videos_path, input_path.split('/')[-1].split('.')[0], 'Screen_{}.' + form)
+        frame_path = os.path.join(videos_path, input_path.split('/')[-1].split('.')[0], '{}.' + form)
         #print(frame_path)
         frames = {}
         last_frame = -1
@@ -41,7 +41,6 @@ def get_data(videos_path, annotations_path, form='png'):
                 if not frameix in frames:
                     frames[frameix] = {}
 
-                    #print(frame_path.format(frameix))
                     img = cv2.imread(frame_path.format(frameix))
                     (rows,cols) = img.shape[:2]
                     frames[frameix]['filepath'] = frame_path.format(frameix)

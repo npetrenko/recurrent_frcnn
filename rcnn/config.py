@@ -1,4 +1,5 @@
 from keras import backend as K
+import numpy as np
 
 
 class Config:
@@ -15,13 +16,13 @@ class Config:
         self.rot_90 = False
 
         # anchor box scales
-        self.anchor_box_scales = [0.7, 1, 1.4, 1.7, 2.5]
+        self.anchor_box_scales = np.arange(0.05, 1.1, 0.1)
 
         # anchor box ratios
-        self.anchor_box_ratios = [[56, 25]]
+        self.anchor_box_ratios = [[150, 300]]
 
         # size to resize the smallest side of the image
-        self.im_size = 256+128
+        self.im_size = 256 + 128
 
         # image channel-wise mean to subtract
         self.img_channel_mean = [100, 100, 100]
@@ -31,7 +32,7 @@ class Config:
         self.num_rois = 4
 
         # stride at the RPN (this depends on the network configuration)
-        self.rpn_stride = 16
+        self.rpn_stride = 8
 
         self.balanced_classes = False
 

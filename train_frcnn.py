@@ -19,7 +19,7 @@ from rcnn.clstm import clstm
 from rcnn import detector_rpn_extraction
 from rcnn.generate_cache import create_cache
 
-os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+#os.environ['CUDA_VISIBLE_DEVICES'] = "1"
 
 sess = tf.Session()
 K.set_session(sess)
@@ -91,7 +91,7 @@ num_videos = len(all_videos)
 
 print('Num samples {}'.format(num_videos))
 
-data_gen = data_generators.video_streamer(all_videos, classes_count, C, nn.get_img_output_length, K.image_dim_ordering(), mode='train')
+data_gen = data_generators.video_streamer(all_videos, classes_count, C, nn.get_img_output_length, K.image_dim_ordering(), mode='train', frame_batchsize=8)
 
 num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
 
@@ -105,7 +105,7 @@ roi_input = tf.placeholder(tf.int64, [None,None,4], name='roi_input')
 y1_input = tf.placeholder(tf.float32, [None,None,num_classes], name='detector_clf_input')
 y2_input = tf.placeholder(tf.float32, [None,None,(num_classes-1)*4*2], name='detector_regr_input')
 
-shared = nn.build_shared(video_input, weights=pretrained_base, stop_gradient=True)
+shared, base_model = nn.build_shared(video_input, stop_gradient=True)
 
 rpn = nn.build_rpn(shared, num_anchors)
 
@@ -142,13 +142,18 @@ classifier[0] = tf.nn.softmax(classifier[0])
 def predict_rpn(X):
     return sess.run(rpn, {video_input: X})
 
-def generate_train_op(loss, lr):
+global_step = tf.Variable(0, name='global_step', trainable=False)
+def generate_train_op(loss, lr, global_step=None):
     optimizer = tf.train.AdamOptimizer(lr)
     gvs = optimizer.compute_gradients(loss)
     capped = [(tf.clip_by_value(grad, -30, 30), var) for grad, var in gvs if grad is not None]
-    return optimizer.apply_gradients(capped)
 
-rpn_train_op = generate_train_op(rpn_loss, 0.00003)
+    if global_step is None:
+        return optimizer.apply_gradients(capped)
+    else:
+        return optimizer.apply_gradients(capped, global_step=global_step)
+
+rpn_train_op = generate_train_op(rpn_loss, 0.00003, global_step=global_step)
 detector_train_op = generate_train_op(detector_loss, 0.00003)
 
 def run_rpn(X, Y):
@@ -174,9 +179,11 @@ class_mapping_inv = {v: k for k, v in class_mapping.items()}
 print('Starting training')
 
 vis = True
+#global_step = tf.train.create_global_step()
 
 init = tf.global_variables_initializer()
 sess.run(init)
+base_model.load_weights(pretrained_base)
 
 writer.add_graph(sess.graph)
 
@@ -206,7 +213,7 @@ for epoch_num in range(num_epochs):
             t0 = time.time()
             X, Y, img_data = next(data_gen)
 
-            writer.add_summary(run_rpn(X,Y))
+            writer.add_summary(run_rpn(X,Y), global_step=sess.run(global_step))
 
             P_rpn = predict_rpn(X)
 
@@ -227,7 +234,7 @@ for epoch_num in range(num_epochs):
 
             Y1, Y2 = YY
 
-            writer.add_summary(run_detec(X, ROI, Y1, Y2, timestep))
+            writer.add_summary(run_detec(X, ROI, Y1, Y2, timestep), global_step=sess.run(global_step))
 
             iii += 1
         except Exception as e:
