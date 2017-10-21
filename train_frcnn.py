@@ -55,7 +55,7 @@ from rcnn import simple_nn as nn
 C.network = 'simple_nn'
 
 # parse video data
-all_videos, classes_count, class_mapping = get_data(video_path, no_zero_frame=True,part='train', form='jpg')
+all_videos, classes_count, class_mapping = get_data(video_path,part='train', form='jpg')
 
 
 # if it fails to find a folder in rpn_tmp it will generate the whole cache again

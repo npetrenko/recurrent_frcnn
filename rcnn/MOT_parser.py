@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import os
 
-def get_data(mot_path, no_zero_frame, part='train', form='png'):
+def get_data(mot_path, part='train', form='png'):
     path = os.path.join(mot_path, part)
 
     found_bg = False
@@ -22,6 +22,7 @@ def get_data(mot_path, no_zero_frame, part='train', form='png'):
         #print(frame_path)
         frames = {}
         last_frame = -1
+        first_frame = 1e8
         with open(os.path.join(dataset, 'gt/gt.txt'),'r') as f:
             for line in f:
                 line_split = line.strip().split(',')
@@ -30,6 +31,7 @@ def get_data(mot_path, no_zero_frame, part='train', form='png'):
                 class_name = 'bbox'
 
                 last_frame = max(frameix, last_frame)
+                first_frame = min(first_frame, frameix)
 
                 if class_name not in classes_count:
                     classes_count[class_name] = 1
@@ -55,9 +57,7 @@ def get_data(mot_path, no_zero_frame, part='train', form='png'):
                     
                 frames[frameix]['bboxes'].append({'class': class_name, 'x1': int(x1), 'x2': int(x2), 'y1': int(y1), 'y2': int(y2)})
         video = []
-        for frameix in range(last_frame):
-            if no_zero_frame:
-                frameix += 1
+        for frameix in range(first_frame, last_frame+1):
             video.append(frames[frameix])
         all_videos.append(video)
 
