@@ -15,7 +15,7 @@ class Config:
         self.rot_90 = False
 
         # anchor box scales
-        self.anchor_box_scales = [0.3, 0.5, 0.7, 1]
+        self.anchor_box_scales = [0.7, 1, 1.4, 1.7, 2.5]
 
         # anchor box ratios
         self.anchor_box_ratios = [[56, 25]]

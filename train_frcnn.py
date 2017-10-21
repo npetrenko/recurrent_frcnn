@@ -36,7 +36,7 @@ pretrained_base = './vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5'
 output_weight_path = './experiment_save/with_det'#'./save_dir/rpn_only.sv'
 n_jobs = 4
 
-tensorboard_dir = '/tmp/clstm1'
+tensorboard_dir = '/tmp/clstm'
 
 #from rcnn.video_parser import get_data
 from rcnn.MOT_parser import get_data
