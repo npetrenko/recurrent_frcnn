@@ -2,8 +2,7 @@ import cv2
 import numpy as np
 import os
 
-def get_data(mot_path, part='train', form='png'):
-    path = os.path.join(mot_path, part)
+def get_data(mot_pathes, part='train', form='png'):
 
     found_bg = False
     all_videos = []
@@ -13,7 +12,11 @@ def get_data(mot_path, part='train', form='png'):
     class_mapping = {}
 
     visualise = False
-    datasets = [x for x in map(lambda x: os.path.join(path, x), os.listdir(path)) if not ('/.' in x)]
+
+    datasets = []
+    for mot_path in mot_pathes:
+        path = os.path.join(mot_path, part)
+        datasets += [x for x in map(lambda x: os.path.join(path, x), os.listdir(path)) if not ('/.' in x)]
     
     print('Parsing annotation files')
     
@@ -26,7 +29,12 @@ def get_data(mot_path, part='train', form='png'):
         with open(os.path.join(dataset, 'gt/gt.txt'),'r') as f:
             for line in f:
                 line_split = line.strip().split(',')
-                frameix,x1,y1,w,h = map(int, line_split[0:1] + line_split[2:6])
+
+                try:
+                    frameix,x1,y1,w,h = map(lambda x: int(float(x)), line_split[0:1] + line_split[2:6])
+                except:
+                    print(dataset, line)
+                    raise
 
                 x2 = x1 + w
                 y2 = y1 + h
@@ -60,8 +68,19 @@ def get_data(mot_path, part='train', form='png'):
                     
                 frames[frameix]['bboxes'].append({'class': class_name, 'x1': int(x1), 'x2': int(x2), 'y1': int(y1), 'y2': int(y2)})
         video = []
+
+        break_flag = False
         for frameix in range(first_frame, last_frame+1):
-            video.append(frames[frameix])
+            try:
+                video.append(frames[frameix])
+            except:
+                print('Unable to fetch frames in {}, passing'.format(dataset))
+                break_flag = True
+                break
+
+        if break_flag:
+            continue
+                
         all_videos.append(video)
 
 

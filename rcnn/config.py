@@ -16,7 +16,7 @@ class Config:
         self.rot_90 = False
 
         # anchor box scales
-        self.anchor_box_scales = np.arange(0.05, 1.1, 0.1)
+        self.anchor_box_scales = np.arange(0.15, 1.1, 0.2)
 
         # anchor box ratios
         self.anchor_box_ratios = [[150, 300]]
@@ -32,7 +32,7 @@ class Config:
         self.num_rois = 4
 
         # stride at the RPN (this depends on the network configuration)
-        self.rpn_stride = 8
+        self.rpn_stride = 16
 
         self.balanced_classes = False
 

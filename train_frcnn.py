@@ -26,7 +26,7 @@ K.set_session(sess)
 
 sys.setrecursionlimit(40000)
 
-video_path = '/tmp/MOT16/'
+video_path = ['/tmp/MOT16/', '/tmp/MOT17/', '/tmp/2DMOT2015/']
 #annotation_path = './annotations'
 num_rois = 32
 num_epochs = 2000
