@@ -22,7 +22,7 @@ shared_dim = nb_clstm_filter
 
 def get_img_output_length(width, height):
     def get_output_length(input_length):
-        return input_length//16
+        return input_length//8
     return get_output_length(width), get_output_length(height) 
 
 
@@ -68,7 +68,6 @@ def nn_base(stop_gradient=False):
         x = Conv2D(64, (1, 1), activation='relu', padding='same', name='fc1_block')(x)
         x = Conv2D(64, (3, 3), activation='relu', padding='same', name='fc2_block')(x)
         x = Conv2D(64, (3, 3), activation='relu', padding='same', name='fc3_block')(x)
-        x = MaxPooling2D((2,2), strides=(2,2), name='final_pool')(x)
 
         return x, model
 

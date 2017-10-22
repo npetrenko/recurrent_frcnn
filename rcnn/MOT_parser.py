@@ -26,9 +26,25 @@ def get_data(mot_pathes, part='train', form='png'):
         frames = {}
         last_frame = -1
         first_frame = 1e8
-        with open(os.path.join(dataset, 'gt/gt.txt'),'r') as f:
+
+        if part == 'train':
+            bfile = 'gt/gt.txt'
+        else:
+            bfile = 'det/det.txt'
+        with open(os.path.join(dataset, bfile),'r') as f:
             for line in f:
                 line_split = line.strip().split(',')
+
+                if part == 'train':
+                    try:
+                        cls = int(line_split[6])
+                    except:
+                        print(line)
+                        print(dataset)
+                        raise
+
+                    if cls not in [1, 2, 7]:
+                        continue
 
                 try:
                     frameix,x1,y1,w,h = map(lambda x: int(float(x)), line_split[0:1] + line_split[2:6])
