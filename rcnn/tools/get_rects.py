@@ -66,4 +66,4 @@ for video in videos:
     with open(output_name, 'w') as f:
         for bboxes, ix in zip(frame_bboxes, frame_nums):
             for bbox in bboxes:
-                f.write(','.join(map(str, [remove_prefix(ix)] + bbox)) + '\n')
+                f.write(','.join(map(str, [remove_prefix(ix), 1] + bbox + [1])) + '\n') #extra info for MOT file format

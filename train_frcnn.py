@@ -153,8 +153,8 @@ def generate_train_op(loss, lr, global_step=None):
     else:
         return optimizer.apply_gradients(capped, global_step=global_step)
 
-rpn_train_op = generate_train_op(rpn_loss, 0.00003, global_step=global_step)
-detector_train_op = generate_train_op(detector_loss, 0.00003)
+rpn_train_op = generate_train_op(rpn_loss, 0.00001, global_step=global_step)
+detector_train_op = generate_train_op(detector_loss, 0.00001)
 
 def run_rpn(X, Y):
     summary, _ = sess.run([rpn_summary, rpn_train_op], {video_input: X, rpn_target_cls: Y[0], rpn_target_reg: Y[1]}) 

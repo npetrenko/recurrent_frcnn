@@ -48,7 +48,7 @@ def get_real_coordinates(ratio, x1, y1, x2, y2):
     return (real_x1, real_y1, real_x2 ,real_y2)
 
 
-bbox_threshold = 0.51
+#bbox_threshold = 0.6
 ratio = None
 
 def extract_for_rpn_(img, C):
@@ -62,7 +62,7 @@ def extract_for_rpn(video, C):
     tmp = np.array(list(map(lambda x: extract_for_rpn_(x, C), video)))
     return np.array(list(map(lambda x: x[0], tmp)))[np.newaxis,:]
 
-def extract_for_det(Y1,Y2,shared_output, classifier_predict, C):
+def extract_for_det(Y1,Y2,shared_output, classifier_predict, C, bbox_threshold):
     class_mapping = C.class_mapping
     class_mapping = {v: k for k, v in class_mapping.items()}
 
