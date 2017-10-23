@@ -2,7 +2,22 @@ import cv2
 import numpy as np
 import os
 
-def get_data(mot_pathes, part='train', form='png'):
+def read_ini(fpath):
+    ret = {}
+    with open(fpath, 'r') as f:
+        for line in f:
+            if '=' in line:
+                k, v = line.split('=')
+                v = v.rstrip()
+                try:
+                    v = int(v)
+                except:
+                    pass
+                ret[k] = v
+    return ret
+
+
+def get_data(mot_pathes, part='train'):
 
     found_bg = False
     all_videos = []
@@ -21,6 +36,23 @@ def get_data(mot_pathes, part='train', form='png'):
     print('Parsing annotation files')
     
     for dataset in datasets:
+        try:
+            form = read_ini(os.path.join(dataset, 'seqinfo.ini'))['imExt'][1:]
+        except:
+            form = 'jpg'
+
+        try:
+            sprob = read_ini(os.path.join(dataset, 'seqinfo.ini'))['sampleprob']
+        except:
+            sprob = 1
+
+        coord_form = 'xywh'
+
+        try:
+            coord_form = read_ini(os.path.join(dataset, 'seqinfo.ini'))['coordform']
+        except:
+            pass
+
         frame_path = lambda x: os.path.join(dataset, 'img1', str(x).zfill(6) + '.' + form)
         #print(frame_path)
         frames = {}
@@ -52,8 +84,12 @@ def get_data(mot_pathes, part='train', form='png'):
                     print(dataset, line)
                     raise
 
-                x2 = x1 + w
-                y2 = y1 + h
+                if coord_form == 'xywh':
+                    x2 = x1 + w
+                    y2 = y1 + h
+                else:
+                    x2 = w
+                    y2 = h
 
                 class_name = 'bbox'
 
@@ -97,7 +133,7 @@ def get_data(mot_pathes, part='train', form='png'):
         if break_flag:
             continue
                 
-        all_videos.append(video)
+        all_videos.append({'video': video, 'sampleprob': sprob})
 
 
     return all_videos, classes_count, class_mapping

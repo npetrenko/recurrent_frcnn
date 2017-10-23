@@ -19,22 +19,22 @@ from rcnn.clstm import clstm
 from rcnn import detector_rpn_extraction
 from rcnn.generate_cache import create_cache
 
-#os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 sess = tf.Session()
 K.set_session(sess)
 
 sys.setrecursionlimit(40000)
 
-video_path = ['/tmp/MOT17/']
+video_path = ['/u01/tmp/MOT17/', '/u01/tmp/newCam/']
 #annotation_path = './annotations'
 num_rois = 32
 num_epochs = 2000
 config_filename = 'config.pickle'
 
-pretrained_base = './vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5'
+pretrained_base = '/u01/datasets/server_update/vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5'
 output_weight_path = './experiment_save/with_det'#'./save_dir/rpn_only.sv'
-n_jobs = 4
+n_jobs = 40
 
 tensorboard_dir = '/tmp/clstm'
 
@@ -55,7 +55,7 @@ from rcnn import simple_nn as nn
 C.network = 'simple_nn'
 
 # parse video data
-all_videos, classes_count, class_mapping = get_data(video_path,part='train', form='jpg')
+all_videos, classes_count, class_mapping = get_data(video_path,part='train')
 
 
 # if it fails to find a folder in rpn_tmp it will generate the whole cache again

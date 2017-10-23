@@ -321,15 +321,23 @@ def pack(C, fname, x, y, d):
     with open(path, 'wb') as f:
         pickle.dump([x,y,d], f)
 
-def video_streamer(videos, class_count, C, img_length_calc_function, backend, mode='train', frame_batchsize=3):
-    video_batchsize = 1
+def video_streamer(videos_dic, class_count, C, img_length_calc_function, backend, mode='train', frame_batchsize=3):
 
-    last_b = 4*(len(videos)//video_batchsize)
-    videos = videos + videos[:video_batchsize - len(videos)%video_batchsize]
+    videos_seq = []
+    videos_prob = []
+    for d in videos_dic:
+        videos_seq.append(d['video'])
+        videos_prob.append(float(d['sampleprob']))
+
+    videos_prob = np.array(videos_prob)
+    videos_prob /= videos_prob.sum()
+
+
+    video_batchsize = 1
 
     ix = 0
     while True:
-        batch_info = videos[ix:ix+video_batchsize]
+        batch_info = [np.random.choice(videos_seq, p=videos_prob)]
         
         dt0 = all_dt
 
@@ -357,9 +365,6 @@ def video_streamer(videos, class_count, C, img_length_calc_function, backend, mo
                 Y1[-1].append(y[0][0])
                 Y2[-1].append(y[1][0])
                 data[-1].append(d)
-        ix += video_batchsize
-        if ix + video_batchsize > len(videos):
-            ix = 0
 
         dt1 = all_dt
         #print('Reading data took {} sec'.format(dt1 - dt0))

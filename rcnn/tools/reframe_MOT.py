@@ -21,11 +21,11 @@ def read_ini(fpath):
 def get_absolute(root, leafs):
     return list(map(lambda x: os.path.join(root, x), leafs))
 
-mot_dirs = ['/tmp/MOT16', '/tmp/2DMOT2015/', '/tmp/MOT17/']
+mot_dirs = ['/u01/tmp/MOT17/']
 #mot_dirs = ['/tmp/valid_dataset/']
 info_file = 'seqinfo.ini'
 target_framerate = 5
-pad_zero_only=True
+pad_zero_only=False
 
 for mot_dir in mot_dirs:
     targets = get_absolute(mot_dir, ['train'])
@@ -35,7 +35,11 @@ for mot_dir in mot_dirs:
     targets = {}
     for k,v in subtargets.items():
         absp = get_absolute(k, v)
-        data = list(map(lambda x: read_ini(os.path.join(x, info_file)), absp))
+
+        try:
+            data = list(map(lambda x: read_ini(os.path.join(x, info_file)), absp))
+        except:
+            continue
         targets.update({k:v for k,v in zip(absp, data)})
 
     def reindex(images):
@@ -61,7 +65,8 @@ for mot_dir in mot_dirs:
             new_data = os.path.join(root, last + '_' + str(pad) + 'pad')
             os.mkdir(new_data)
             [os.mkdir(os.path.join(new_data, d)) for d in ['img1', 'gt']]
-            new_imgs = reindex([x for x in os.listdir(os.path.join(target, data['imDir'])) if int(x.split('.')[0]) % stride == pad])
+
+            new_imgs = reindex([x for x in os.listdir(os.path.join(target, data['imDir'])) if len(x.split('.')[0]) and (int(x.split('.')[0]) % stride == pad)])
 
             for old, new in new_imgs:
                 os.rename(os.path.join(target, data['imDir'], old), os.path.join(new_data, data['imDir'], new))

@@ -3,23 +3,43 @@ from multiprocessing import Pool
 import cv2
 import numpy as np
 
-mask_source_dir = './crowdgen_data/Color/'
-annotations_output_dir = './annotations'
-n_jobs = 4
+base_dir = '/u01/tmp/newCam/newCam/'
+mask_source_dir = os.path.join(base_dir, 'Color/')
+annotations_output_dir = os.path.join(base_dir, 'gt')
+image_path_dir = os.path.join(base_dir, 'img1')
+n_jobs = 40
+
+try:
+    os.mkdir(annotations_output_dir)
+except:
+    pass
 
 prefix = 'Screen_'
 
 def remove_prefix(line):
     if line.startswith(prefix):
         return line[len(prefix):]
+    else:
+        return line
 
-n_colors = 15
+for frame in os.listdir(image_path_dir):
+    ix, form = frame.split('.')
+    ix = remove_prefix(ix).zfill(6)
+    os.rename(os.path.join(image_path_dir, frame), os.path.join(image_path_dir, '.'.join([ix, form])))
+
+n_colors = 32
 
 videos = os.listdir(mask_source_dir)
-frames = {v: list(map(lambda x: os.path.join(mask_source_dir, v, x), os.listdir(os.path.join(mask_source_dir, v)))) for v in videos}
 
-def get_rects(img):
-    Z = img.reshape((-1,3))
+def get_rects(img_path):
+    img = cv2.imread(img_path)
+
+    try:
+        Z = img.reshape((-1,3))
+    except:
+        print(img_path)
+        raise
+
     Z = np.float32(Z)
     not_zero_index = np.nonzero(Z)
     not_zero = Z[not_zero_index[0]]
@@ -53,17 +73,16 @@ def get_rects(img):
 
 pool = Pool(n_jobs)
 
-for video in videos:
-    cframes = frames[video]
+frames = list(map(lambda x: os.path.join(mask_source_dir, x), os.listdir(mask_source_dir)))
+frames = [x for x in frames if not 'DS' in x]
 
-    frame_ims = list(map(cv2.imread, cframes))
-    frame_nums = [v.split('/')[-1].split('.')[0] for v in cframes]
+frame_nums = [v.split('/')[-1].split('.')[0] for v in frames]
 
-    frame_bboxes = pool.map(get_rects, frame_ims)
+frame_bboxes = pool.map(get_rects, frames)
 
-    output_name = os.path.join(annotations_output_dir, video)
-    
-    with open(output_name, 'w') as f:
-        for bboxes, ix in zip(frame_bboxes, frame_nums):
-            for bbox in bboxes:
-                f.write(','.join(map(str, [remove_prefix(ix), 1] + bbox + [1])) + '\n') #extra info for MOT file format
+output_name = os.path.join(annotations_output_dir, 'gt.txt')
+
+with open(output_name, 'w') as f:
+    for bboxes, ix in zip(frame_bboxes, frame_nums):
+        for bbox in bboxes:
+            f.write(','.join(map(str, [remove_prefix(ix), 1] + bbox + [1])) + '\n') #extra info for MOT file format
