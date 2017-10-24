@@ -13,26 +13,38 @@ from keras import backend as K
 from keras.models import Model
 
 from .clstm import clstm
+from rcnn import losses
 
 from rcnn.RoiPoolingConv import RoiPoolingConv
 from rcnn.FixedBatchNormalization import FixedBatchNormalization
+import tensorflow as tf
 
 nb_clstm_filter = 64
-shared_dim = nb_clstm_filter
+
+def generate_train_op(loss, lr, global_step=None):
+    optimizer = tf.train.AdamOptimizer(lr)
+    gvs = optimizer.compute_gradients(loss)
+    capped = [(tf.clip_by_value(grad, -30, 30), var) for grad, var in gvs if grad is not None]
+
+    if global_step is None:
+        return optimizer.apply_gradients(capped)
+
+    return optimizer.apply_gradients(capped, global_step=global_step)
 
 class FRCNN:
-    def __init__(self, num_anchors, num_rois, base_weights=None, learn_base=False):
+    def __init__(self, num_anchors, num_rois, base_weights=None, learn_base=False, global_step=None, lr=None):
         self.num_anchors = num_anchors
 
-        self.video_input = tf.placeholder(tf.float32, [None,None,None,None,3], name='video_input')
-        self.rpn_target_cls = tf.placeholder(tf.float32, [None,None,None,None,2*num_anchors], name='rpn_target_for_classification')
-        self.rpn_target_reg = tf.placeholder(tf.float32, [None,None,None,None,2*num_anchors*4], name='rpn_target_for_regression')
+        with tf.name_scope('input_placeholders'):
+            self.video_input = tf.placeholder(tf.float32, [None,None,None,None,3], name='video_input')
+            self.rpn_target_cls = tf.placeholder(tf.float32, [None,None,None,None,2*num_anchors], name='rpn_target_for_classification')
+            self.rpn_target_reg = tf.placeholder(tf.float32, [None,None,None,None,2*num_anchors*4], name='rpn_target_for_regression')
 
-        self.detector_selected_time = tf.placeholder(tf.int32, name='selector_timestep_for_detector')
-        self.roi_input = tf.placeholder(tf.int64, [None,None,4], name='roi_input')
+            self.detector_selected_time = tf.placeholder(tf.int32, name='selector_timestep_for_detector')
+            self.roi_input = tf.placeholder(tf.int64, [None,None,4], name='roi_input')
 
-        self.detector_clf_target = tf.placeholder(tf.float32, [None,None,num_classes], name='detector_clf_target')
-        self.detector_regr_target = tf.placeholder(tf.float32, [None,None,(num_classes-1)*4*2], name='detector_regr_target')
+            self.detector_clf_target = tf.placeholder(tf.float32, [None,None,num_classes], name='detector_clf_target')
+            self.detector_regr_target = tf.placeholder(tf.float32, [None,None,(num_classes-1)*4*2], name='detector_regr_target')
 
         base_layers = tf.identity(self.build_shared(video_input, stop_gradient=not learn_base), name='base_layers_output')
 
@@ -43,15 +55,57 @@ class FRCNN:
         rpn_cls = tf.identity(rpn_cls, name='rpn_cls_output')
         rpn_reg = tf.identity(rpn_reg name='rpn_reg_output')
 
+        self.rpn = [rpn_cls, rpn_reg]
+
         detector_cls, detector_reg = self.classifier(self.roi_input, num_rois, nb_classes=2, trainable=True)(base_layers[:, detector_selected_time])
         detector_cls = tf.identity(detector_cls, name='detector_cls_output')
         detector_reg = tf.identity(detector_reg, name='detector_reg_output')
 
+        
+        with tf.name_scope('rpn_loss'):
+            rpn_clf_loss = losses.rpn_loss_cls(num_anchors)(rpn_target_cls, rpn_cls)
+            rpn_reg_loss = losses.rpn_loss_regr(num_anchors)(rpn_target_reg, rpn_reg)
+            
+            rpn_loss = rpn_clf_loss + rpn_reg_loss
+
+        rpn_summary = [tf.summary.scalar('rpn_loss', rpn_loss),
+                       tf.summary.scalar('rpn_clf_loss', rpn_clf_loss),
+                       tf.summary.scalar('rpn_reg_loss', rpn_reg_loss)]
+
+        self.rpn_summary = tf.summary.merge(rpn_summary)
+
+        with tf.name_scope('detector_loss'):
+            detector_clf_loss = losses.class_loss_cls(y1_input, detector_cls)
+            detector_reg_loss = losses.class_loss_regr(num_classes-1)(y2_input, detector_reg)
+
+            detector_loss = detector_reg_loss + detector_clf_loss
+
+        detector_summary = [tf.summary.scalar('detector_loss',detector_loss),
+                            tf.summary.scalar('detector_clf_loss', detector_clf_loss),
+                            tf.summary.scalar('detector_reg_loss',detector_reg_loss)]
+
+        self.detector_summary = tf.summary.merge(detector_summary)
+
+        self.rpn_train_op = generate_train_op(rpn_loss, lr=lr, global_step=global_step)
+        self.detector_train_op = generate_train_op(detector_loss, lr=lr)
+
+    def train_rpn(self, X, Y):
+        summary, _ = sess.run([self.rpn_summary, self.rpn_train_op], {self.video_input: X, self.rpn_target_cls: Y[0], self.rpn_target_reg: Y[1]})
+        return summary
+
+    def train_detec(self, X, ROI, Y1, Y2, timestep):
+        summary, _ = sess.run([self.detector_loss_summary, self.detector_train_op], {self.video_input:X, self.roi_input:ROI, 
+                                self.detector_clf_target:Y1, self.detector_reg_target:Y2, detector_selected_time:timestep})
+        return summary
+
+    def predict_rpn(self, X):
+        return sess.run(self.rpn, {self.video_input: X})
+
     @staticmethod
     def get_img_output_length(width, height):
-        def get_output_length(input_length):
-            return input_length//8
-        return get_output_length(width), get_output_length(height) 
+            def get_output_length(input_length):
+                return input_length//8
+            return get_output_length(width), get_output_length(height) 
 
     @staticmethod
     def nn_base(stop_gradient=False):
