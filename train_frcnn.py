@@ -27,6 +27,7 @@ K.set_session(sess)
 sys.setrecursionlimit(40000)
 
 video_path = ['/u01/tmp/MOT17/', '/u01/tmp/newCam/']
+#video_path = ['/u01/tmp/MOT17_test/', '/u01/tmp/newCam_test/']
 #annotation_path = './annotations'
 num_rois = 32
 num_epochs = 2000
@@ -62,7 +63,7 @@ all_videos, classes_count, class_mapping = get_data(video_path,part='train')
 if not os.path.exists(os.path.join(C.tmp_dir, 'rpn_tmp', '0')):
     print('Cache not found! Creating cache')
     t0 = time.time()
-    create_cache(all_videos, classes_count, C, nn.get_img_output_length, n_jobs=n_jobs)
+    create_cache([x['video'] for x in all_videos], classes_count, C, nn.get_img_output_length, n_jobs=n_jobs)
     print('Generating cache took {} minutes'.format((time.time() - t0)/60))
 
 
@@ -153,8 +154,8 @@ def generate_train_op(loss, lr, global_step=None):
     else:
         return optimizer.apply_gradients(capped, global_step=global_step)
 
-rpn_train_op = generate_train_op(rpn_loss, 0.00001, global_step=global_step)
-detector_train_op = generate_train_op(detector_loss, 0.00001)
+rpn_train_op = generate_train_op(rpn_loss, 0.00004, global_step=global_step)
+detector_train_op = generate_train_op(detector_loss, 0.00004)
 
 def run_rpn(X, Y):
     summary, _ = sess.run([rpn_summary, rpn_train_op], {video_input: X, rpn_target_cls: Y[0], rpn_target_reg: Y[1]}) 
