@@ -3,11 +3,11 @@ from multiprocessing import Pool
 import cv2
 import numpy as np
 
-base_dir = '/u01/tmp/newCam/newCam/'
+base_dir = '/tmp/newCam/train/newCam/'
 mask_source_dir = os.path.join(base_dir, 'Color/')
 annotations_output_dir = os.path.join(base_dir, 'gt')
 image_path_dir = os.path.join(base_dir, 'img1')
-n_jobs = 40
+n_jobs = 4
 
 try:
     os.mkdir(annotations_output_dir)

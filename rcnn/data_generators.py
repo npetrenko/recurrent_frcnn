@@ -337,7 +337,7 @@ def video_streamer(videos_dic, class_count, C, img_length_calc_function, backend
 
     ix = 0
     while True:
-        batch_info = [np.random.choice(videos_seq, p=videos_prob)]
+        batch_info = [videos_seq[np.random.choice(len(videos_seq), p=videos_prob)]]
         
         dt0 = all_dt
 

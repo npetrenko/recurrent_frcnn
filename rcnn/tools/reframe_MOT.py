@@ -21,11 +21,11 @@ def read_ini(fpath):
 def get_absolute(root, leafs):
     return list(map(lambda x: os.path.join(root, x), leafs))
 
-mot_dirs = ['/u01/tmp/MOT17/']
+mot_dirs = ['/tmp/MOT17/']
 #mot_dirs = ['/tmp/valid_dataset/']
 info_file = 'seqinfo.ini'
 target_framerate = 5
-pad_zero_only=False
+pad_zero_only=True
 
 for mot_dir in mot_dirs:
     targets = get_absolute(mot_dir, ['train'])
