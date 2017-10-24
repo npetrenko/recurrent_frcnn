@@ -356,7 +356,11 @@ def video_streamer(videos_dic, class_count, C, img_length_calc_function, backend
                     else:
                         raise FileNotFoundError
                 except FileNotFoundError:
-                    x, y, d = get_anchor(frame, class_count, C, img_length_calc_function, backend, mode=mode)
+                    try:
+                        x, y, d = get_anchor(frame, class_count, C, img_length_calc_function, backend, mode=mode)
+                    except:
+                        print(frame)
+                        raise
 
                     if mode=='train':
                         pack(C, frame['filepath'], x, y, d)
