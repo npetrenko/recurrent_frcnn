@@ -5,7 +5,12 @@ import os
 def pack_frame(data):
     frame, class_count, C, img_length_calc_function = data
 
-    x, y, d = get_anchor(frame, class_count, C, img_length_calc_function, 'tf', mode='test')
+    try:
+        x, y, d = get_anchor(frame, class_count, C, img_length_calc_function, 'tf', mode='test')
+    except:
+        print(frame)
+        raise
+
     pack(C, frame['filepath'], x, y, d)
 
 def create_cache(videos, class_count, C, img_length_calc_function, n_jobs):

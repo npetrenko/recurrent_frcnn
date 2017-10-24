@@ -1,7 +1,7 @@
 #!/bin/sh
-sudo rm -R tmp/rpn_tmp || true
+sudo rm -R tmp/rpn_tmp/* || true
 sudo rm -R experiment_save/* || true 
 
-mkdir tmp
-mkdir tmp/rpn_tmp
-mkdir experiment_save
+mkdir tmp || true
+mkdir tmp/rpn_tmp || true
+mkdir experiment_save || true
