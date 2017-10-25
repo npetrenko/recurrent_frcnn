@@ -53,8 +53,6 @@ class FRCNN:
 
         rpn_cls, rpn_reg = self.build_rpn(base_layers, num_anchors)
 
-        self.rpn = [rpn_cls, rpn_reg]
-
         base_layers_st = tf.placeholder_with_default(base_layers[:, self.detector_selected_time], shape=[None,None,None,int(base_layers.shape[-1])], name='base_layers_placeholder')
 
         detector_cls, detector_reg = self.classifier(self.roi_input, num_rois, nb_classes=2, trainable=True)(base_layers_st)
@@ -91,6 +89,8 @@ class FRCNN:
 
         detector_cls = tf.identity(tf.nn.softmax(detector_cls), name='detector_cls_output')
         detector_reg = tf.identity(detector_reg, name='detector_reg_output')
+
+        self.rpn = [rpn_cls, rpn_reg]
 
     def init_weights(self):
         self.base_model.load_weights(self.base_weights)
