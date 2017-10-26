@@ -16,6 +16,8 @@ def cnn(x, nbfilter, filtersize, name, use_bias=True, num_channels=None, bayesia
         graph = tf.get_default_graph()
 
         filt_logstd = tf.get_variable(name + '_' + 'conv_filter_logsd', initializer=tf.ones(filter_shape, dtype=filt.dtype) - 5)
+
+        learning_phase = graph.get_tensor_by_name('learning_phase:0')
         
         if reused:
             kl = tf.reduce_sum(-filt_logstd + tf.exp(filt_logstd)**2/prior_std**2/2)
@@ -23,7 +25,8 @@ def cnn(x, nbfilter, filtersize, name, use_bias=True, num_channels=None, bayesia
 
             graph.add_to_collection('kls', kl)
 
-        filt = tf.random_normal(filter_shape)*tf.exp(filt_logstd) + filt
+        filt_stoc = tf.random_normal(filter_shape)*tf.exp(filt_logstd) + filt
+        filt = tf.where(learning_phase, filt_stoc, filt, name='bayes_learning_phase_switch')
 
     x = tf.nn.conv2d(x, filt, [1,1,1,1], 'SAME')
 

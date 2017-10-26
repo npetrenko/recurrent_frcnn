@@ -118,7 +118,7 @@ C.num_rois = num_rois
 # define the RPN, built on the base layers
 num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
 
-model = nn.FRCNN(num_anchors, C.num_rois, base_weights=None, lr = 0.00001)
+model = nn.FRCNN(num_anchors, C.num_rois, base_weights=None, lr = 0.00001, kl_ratio=0.001)
 
 print('Loading weights from {}'.format(save_path))
 saver = tf.train.Saver()
@@ -169,7 +169,7 @@ with sess.as_default():
         im_seq = np.array(im_seq)[np.newaxis,...]
 
         # get the feature maps and output from the RPN
-        Y1_seq, Y2_seq, F_seq = model.predict_rpn_base(im_seq)
+        Y1_seq, Y2_seq, F_seq = model.predict_rpn_base(im_seq, learning_phase=False)
 
 
         for t in range(Y1_seq.shape[1]):
@@ -199,7 +199,7 @@ with sess.as_default():
                     ROIs_padded[0, curr_shape[1]:, :] = ROIs[0, 0, :]
                     ROIs = ROIs_padded
 
-                [P_cls, P_regr] = model.predict_detec(F, ROIs)
+                [P_cls, P_regr] = model.predict_detec(F, ROIs, learning_phase=False)
 
                 for ii in range(P_cls.shape[1]):
 

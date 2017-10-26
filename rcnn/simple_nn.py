@@ -37,6 +37,7 @@ class FRCNN:
     def __init__(self, num_anchors, num_rois, kl_ratio, base_weights=None, learn_base=False, global_step=None, lr=None):
         self.num_anchors = num_anchors
         self.base_weights = base_weights
+        self.learning_phase = tf.placeholder_with_default(True, shape=[], name='learning_phase')
 
         num_classes = 2
 
@@ -123,17 +124,17 @@ class FRCNN:
                                 self.detector_clf_target:Y1, self.detector_regr_target:Y2, self.detector_selected_time:timestep})
         return summary
 
-    def predict_rpn_base(self, X):
+    def predict_rpn_base(self, X, learning_phase=True):
         sess = tf.get_default_session()
-        return sess.run(self.rpn + [self.base_layers], {self.video_input: X})
+        return sess.run(self.rpn + [self.base_layers], {self.video_input: X, self.learning_phase: learning_phase})
 
-    def predict_rpn(self, X):
+    def predict_rpn(self, X, learning_phase=True):
         sess = tf.get_default_session()
-        return sess.run(self.rpn, {self.video_input: X})
+        return sess.run(self.rpn, {self.video_input: X, self.learning_phase: learning_phase})
 
-    def predict_detec(self, F, ROIs):
+    def predict_detec(self, F, ROIs, learning_phase=False):
         sess = tf.get_default_session()
-        return sess.run(self.detector, {self.base_layers_st: F, self.roi_input: ROIs})
+        return sess.run(self.detector, {self.base_layers_st: F, self.roi_input: ROIs, self.learning_phase: learning_phase})
 
     @staticmethod
     def get_img_output_length(width, height):
