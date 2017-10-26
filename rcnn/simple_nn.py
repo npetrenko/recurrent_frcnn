@@ -51,9 +51,13 @@ class FRCNN:
 
         base_layers = tf.identity(self.build_shared(self.video_input, stop_gradient=not learn_base), name='base_layers_output')
 
+        self.base_layers = base_layers
+
         rpn_cls, rpn_reg = self.build_rpn(base_layers, num_anchors)
 
         base_layers_st = tf.placeholder_with_default(base_layers[:, self.detector_selected_time], shape=[None,None,None,int(base_layers.shape[-1])], name='base_layers_placeholder')
+
+        self.base_layers_st = base_layers_st
 
         detector_cls, detector_reg = self.classifier(self.roi_input, num_rois, nb_classes=2, trainable=True)(base_layers_st)
         
@@ -91,6 +95,7 @@ class FRCNN:
         detector_reg = tf.identity(detector_reg, name='detector_reg_output')
 
         self.rpn = [rpn_cls, rpn_reg]
+        self.detector = [detector_cls, detector_reg]
 
     def init_weights(self):
         self.base_model.load_weights(self.base_weights)
@@ -106,9 +111,17 @@ class FRCNN:
                                 self.detector_clf_target:Y1, self.detector_regr_target:Y2, self.detector_selected_time:timestep})
         return summary
 
+    def predict_rpn_base(self, X):
+        sess = tf.get_default_session()
+        return sess.run(self.rpn + [self.base_layers], {self.video_input: X})
+
     def predict_rpn(self, X):
         sess = tf.get_default_session()
         return sess.run(self.rpn, {self.video_input: X})
+
+    def predict_detec(self, F, ROIs):
+        sess = tf.get_default_session()
+        return sess.run(self.detector, {self.base_layers_st: F, self.roi_input: ROIs})
 
     @staticmethod
     def get_img_output_length(width, height):
