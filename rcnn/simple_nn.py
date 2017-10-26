@@ -214,8 +214,8 @@ class FRCNN:
 
             shared_layers = self.time_broadcast(base, video_input)
 
-            shared_layers = clstm(shared_layers,nb_clstm_filter,3, 'forward_clstm')
-            shared_layers = clstm(shared_layers[:,::-1],nb_clstm_filter,3, 'backward_cltsm')[:,::-1]
+            shared_layers = clstm(shared_layers,nb_clstm_filter,3, 'forward_clstm', bayesian=True)
+            shared_layers = clstm(shared_layers[:,::-1],nb_clstm_filter,3, 'backward_cltsm', bayesian=True)[:,::-1]
 
         return shared_layers
 

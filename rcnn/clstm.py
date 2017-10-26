@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-def cnn(x, nbfilter, filtersize, name, use_bias=True, num_channels=None, bayesian=False, prior_std=2., activation=None):
+def cnn(x, nbfilter, filtersize, name, use_bias=True, num_channels=None, bayesian=False, prior_std=2., activation=None, reused=False):
     if num_channels is None:
         num_channels = int(x.shape[-1])
 
@@ -17,12 +17,13 @@ def cnn(x, nbfilter, filtersize, name, use_bias=True, num_channels=None, bayesia
 
         filt_logstd = tf.get_variable(name + '_' + 'conv_filter_logsd', initializer=tf.ones(filter_shape, dtype=filt.dtype) - 5)
         
-        kl = tf.reduce_sum(-filt_logstd + tf.exp(filt_logstd)**2/prior_std**2/2)
-        kl = tf.identity(kl, name= name+'_' + 'conv_filter_priorkl')
+        if reused:
+            kl = tf.reduce_sum(-filt_logstd + tf.exp(filt_logstd)**2/prior_std**2/2)
+            kl = tf.identity(kl, name= name+'_' + 'conv_filter_priorkl')
 
-        graph.add_to_collection('kls', kl)
+            graph.add_to_collection('kls', kl)
 
-        filt = tf.random_normal(filter_shape)*filt_sd + filt
+        filt = tf.random_normal(filter_shape)*tf.exp(filt_logstd) + filt
 
     x = tf.nn.conv2d(x, filt, [1,1,1,1], 'SAME')
 
@@ -50,23 +51,23 @@ def clstm(x, n_hidden, filtersize, name, bayesian=False):
             st_1, ct_1 = tf.unstack(prev)
 
             with tf.variable_scope('0', reuse=True):
-                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian)
-                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian)
+                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian, reused=True)
+                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian, reused=True)
             i = tf.sigmoid(tmp0 + tmp1)
 
             with tf.variable_scope('1', reuse=True):
-                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian)
-                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian)
+                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian, reused=True)
+                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian, reused=True)
             f = tf.sigmoid(tmp0 + tmp1)
 
             with tf.variable_scope('2', reuse=True):
-                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian)
-                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian)
+                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian, reused=True)
+                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian, reused=True)
             o = tf.sigmoid(tmp0 + tmp1)
 
             with tf.variable_scope('3', reuse=True):
-                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian)
-                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian)
+                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian, reused=True)
+                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian, reused=True)
 
             g = tf.tanh(tmp0 + tmp1)
 

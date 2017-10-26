@@ -26,7 +26,7 @@ K.set_session(sess)
 
 sys.setrecursionlimit(40000)
 
-video_path = ['/tmp/MOT17/', '/tmp/newCam/']
+video_path = ['/tmp/MOT17']
 #video_path = ['/u01/tmp/MOT17_test/', '/u01/tmp/newCam_test/']
 #annotation_path = './annotations'
 num_rois = 32
@@ -87,7 +87,7 @@ num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
 
 global_step = tf.Variable(0, name='global_step', trainable=False)
 
-model = nn.FRCNN(num_anchors, C.num_rois, base_weights = pretrained_base, global_step=global_step, lr = 0.00001)
+model = nn.FRCNN(num_anchors, C.num_rois, base_weights = pretrained_base, global_step=global_step, lr = 0.00001, kl_ratio=0.01)
 
 # if it fails to find a folder in rpn_tmp it will generate the whole cache again
 if not os.path.exists(os.path.join(C.tmp_dir, 'rpn_tmp', '0')):
