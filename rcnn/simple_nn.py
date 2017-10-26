@@ -12,12 +12,14 @@ from keras.layers import Input, Conv2D, Add, Dense, Activation, Flatten, Convolu
 from keras import backend as K
 from keras.models import Model
 
-from .clstm import clstm
+from .clstm import clstm, cnn
 from rcnn import losses
 
 from rcnn.RoiPoolingConv import RoiPoolingConv
 from rcnn.FixedBatchNormalization import FixedBatchNormalization
 import tensorflow as tf
+
+from functools import reduce
 
 nb_clstm_filter = 64
 
@@ -32,7 +34,7 @@ def generate_train_op(loss, lr, global_step=None):
     return optimizer.apply_gradients(capped, global_step=global_step)
 
 class FRCNN:
-    def __init__(self, num_anchors, num_rois, base_weights=None, learn_base=False, global_step=None, lr=None):
+    def __init__(self, num_anchors, num_rois, kl_ratio, base_weights=None, learn_base=False, global_step=None, lr=None):
         self.num_anchors = num_anchors
         self.base_weights = base_weights
 
@@ -58,10 +60,15 @@ class FRCNN:
         detector_cls, detector_reg = self.classifier(self.roi_input, num_rois, nb_classes=2, trainable=True)(base_layers_st)
         
         with tf.name_scope('rpn_loss'):
+            graph = tf.get_default_graph()
+            kls = graph.get_collection('kls')
+            rpn_kl_base = sum([x for x in kls if 'BASE' in x.name])/2/kl_ratio
+            rpn_kl_rpn = sum([x for x in kls if 'RPN' in x.name])/kl_ratio
+
             rpn_clf_loss = losses.rpn_loss_cls(num_anchors)(self.rpn_target_cls, rpn_cls)
             rpn_reg_loss = losses.rpn_loss_regr(num_anchors)(self.rpn_target_reg, rpn_reg)
             
-            rpn_loss = rpn_clf_loss + rpn_reg_loss
+            rpn_loss = rpn_clf_loss + rpn_reg_loss + rpn_kl_base + rpn_kl_rpn
 
         rpn_summary = [tf.summary.scalar('rpn_loss', rpn_loss),
                        tf.summary.scalar('rpn_clf_loss', rpn_clf_loss),
@@ -70,10 +77,15 @@ class FRCNN:
         self.rpn_summary = tf.summary.merge(rpn_summary)
 
         with tf.name_scope('detector_loss'):
+            graph = tf.get_default_graph()
+            kls = graph.get_collection('kls')
+            detec_kl_base = sum([x for x in kls if 'BASE' in x.name])/2/kl_ratio
+            detec_kl_detec = sum([x for x in kls if 'DETECTOR' in x.name])/kl_ratio
+
             detector_clf_loss = losses.class_loss_cls(self.detector_clf_target, detector_cls)
             detector_reg_loss = losses.class_loss_regr(num_classes-1)(self.detector_regr_target, detector_reg)
 
-            detector_loss = detector_reg_loss + detector_clf_loss
+            detector_loss = detector_reg_loss + detector_clf_loss + detec_kl_base + detec_kl_detec
 
         detector_summary = [tf.summary.scalar('detector_loss',detector_loss),
                             tf.summary.scalar('detector_clf_loss', detector_clf_loss),
@@ -159,19 +171,19 @@ class FRCNN:
                 r = tf.stop_gradient(r)
 
             x = r
-            x = Conv2D(64, (1, 1), activation='relu', padding='same', name='fc1_block')(x)
-            x = Conv2D(64, (3, 3), activation='relu', padding='same', name='fc2_block')(x)
-            x = Conv2D(64, (3, 3), activation='relu', padding='same', name='fc3_block')(x)
+            x = cnn(x, 64, 1, name='BASE_c1', activation=tf.nn.relu, bayesian=True)
+            x = cnn(x, 64, 3, name='BASE_c2', activation=tf.nn.relu, bayesian=True)
+            x = cnn(x, 64, 3, name='BASE_c3', activation=tf.nn.relu, bayesian=True)
 
             return x
         return f
 
     def rpn(self, num_anchors):
         def f(base_layers):
-            x = Convolution2D(32, (2, 2), padding='same', activation='relu', name='rpn_conv1')(base_layers)
+            x = cnn(base_layers, 32, 2, name='c0', activation=tf.nn.relu, bayesian=True)
 
-            x_class = Convolution2D(num_anchors, (1, 1), activation='linear', padding='same', name='rpn_out_class')(x)
-            x_regr = Convolution2D(num_anchors * 4, (1, 1), activation='linear', padding='same', name='rpn_out_regress')(x)
+            x_class = cnn(x, num_anchors, 1, name='conv_clf', bayesian=True)
+            x_regr = cnn(x, num_anchors*4, 1, name='conv_regr', bayesian=True)
 
             return [x_class, x_regr, base_layers]
         return f
@@ -235,7 +247,7 @@ class FRCNN:
 
     def classifier(self, input_rois, num_rois, nb_classes, trainable=False):
         def f(base_layers):
-            with tf.name_scope('detector'):
+            with tf.name_scope('DETECTOR'):
                 pooling_regions = 14
                 input_shape = (num_rois,14,14,64)
 
