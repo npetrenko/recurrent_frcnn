@@ -1,44 +1,56 @@
 import tensorflow as tf
 
-def cnn(x, nbfilter, filtersize, name, use_bias=True, num_channels=None, bayesian=False, prior_std=2., activation=None, reused=False):
+eps = 0.001
+
+def create_priorkl(pairs, prior_std):
+    with tf.name_scope('KL'):
+        for mu, logsigma in pairs:
+            kl = -logsigma + (tf.exp(logsigma)**2 + mu**2)/(2*prior_std**2)
+            kl = tf.reduce_sum(kl)
+            tf.add_to_collection('KLS', kl)
+
+def cnn(x, nbfilter, filtersize, name, use_bias=True, num_channels=None, bayesian=False, prior_std=1., activation=None, reuse=None):
     if num_channels is None:
         num_channels = int(x.shape[-1])
 
-    #print([filtersize, filtersize, num_channels, nbfilter])
+    kernelshape = [filtersize, filtersize, num_channels, nbfilter]
 
-    filter_shape = [filtersize, filtersize, num_channels, nbfilter]
+    with tf.variable_scope(name, initializer=tf.random_normal_initializer(stddev=0.01), reuse=reuse):
+        with tf.name_scope(name + '/'):
 
-    finit = tf.random_normal(filter_shape, stddev=0.05)
+            kernel_mu = tf.get_variable('kernel_mu', shape=kernelshape)
 
-    filt = tf.get_variable(name + '_' + 'conv_filter_mu', initializer=finit)
+            if bayesian:
+                kernel_logsigma = tf.get_variable('kernel_logsigma', shape=kernelshape) - 4
+                kernel_sigma = tf.exp(kernel_logsigma)
 
-    if bayesian:
-        graph = tf.get_default_graph()
+                tf.summary.histogram('kernel_sigma', kernel_sigma)
 
-        filt_logstd = tf.get_variable(name + '_' + 'conv_filter_logsd', initializer=tf.ones(filter_shape, dtype=filt.dtype) - 5)
+                graph = tf.get_default_graph()
+                learning_phase = graph.get_tensor_by_name('learning_phase:0')
 
-        learning_phase = graph.get_tensor_by_name('learning_phase:0')
-        
-        if reused:
-            kl = tf.reduce_sum(-filt_logstd + tf.exp(filt_logstd)**2/prior_std**2/2)
-            kl = tf.identity(kl, name= name+'_' + 'conv_filter_priorkl')
+                pmu = tf.nn.conv2d(x, kernel_mu, [1,1,1,1], padding='SAME')
+                pvar = tf.nn.conv2d(x**2, kernel_sigma**2, [1,1,1,1], padding='SAME') + eps
 
-            graph.add_to_collection('kls', kl)
+                p = tf.random_normal(tf.shape(pmu))*tf.sqrt(pvar) + pmu
 
-        filt_stoc = tf.random_normal(filter_shape)*tf.exp(filt_logstd) + filt
-        filt = tf.where(learning_phase, filt_stoc, filt, name='bayes_learning_phase_switch')
+                p = tf.where(learning_phase, p, pmu, name='bayes_learning_phase_switch')
 
-    x = tf.nn.conv2d(x, filt, [1,1,1,1], 'SAME')
+            else:
+                p = tf.nn.conv2d(x, kernel_mu, [1,1,1,1], 'SAME')
 
-    if use_bias:
-        b = tf.get_variable(name + '_' + 'cov_bias', initializer=tf.random_normal([nbfilter], stddev=0.05))
-        x += b
+            if not reuse:
+                create_priorkl([[kernel_mu, kernel_logsigma]], prior_std)
 
-    if activation is not None:
-        x = activation(x)
+            if use_bias:
+                b = tf.get_variable('bias', shape=[1,1,1,nbfilter])
+                p += b
 
-    x.set_shape([None,None,None,nbfilter])
-    return x 
+            if activation is not None:
+                p = activation(p)
+
+            p.set_shape([None,None,None,nbfilter])
+            return p
 
 def clstm(x, n_hidden, filtersize, name, bayesian=False):
     num_channels = int(x.shape[-1])
@@ -47,30 +59,30 @@ def clstm(x, n_hidden, filtersize, name, bayesian=False):
         batchsize, height, width = tf.shape(x)[0], tf.shape(x)[2], tf.shape(x)[3]
         for scope in ['0', '1', '2', '3']:
             with tf.variable_scope(scope):
-                cnn(x[:,0], n_hidden, filtersize, '0', bayesian=bayesian)
-                cnn(tf.ones([1,30,30,n_hidden]), n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian)
+                cnn(x[:,0], n_hidden, filtersize, '0', bayesian=bayesian, reuse=False)
+                cnn(tf.ones([1,30,30,n_hidden]), n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian, reuse=False)
 
         def step(prev, x):
             st_1, ct_1 = tf.unstack(prev)
 
             with tf.variable_scope('0', reuse=True):
-                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian, reused=True)
-                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian, reused=True)
+                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian)
+                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian)
             i = tf.sigmoid(tmp0 + tmp1)
 
             with tf.variable_scope('1', reuse=True):
-                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian, reused=True)
-                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian, reused=True)
+                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian)
+                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian)
             f = tf.sigmoid(tmp0 + tmp1)
 
             with tf.variable_scope('2', reuse=True):
-                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian, reused=True)
-                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian, reused=True)
+                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian)
+                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian)
             o = tf.sigmoid(tmp0 + tmp1)
 
             with tf.variable_scope('3', reuse=True):
-                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian, reused=True)
-                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian, reused=True)
+                tmp0 = cnn(x, n_hidden, filtersize, '0', bayesian=bayesian)
+                tmp1 = cnn(st_1, n_hidden, filtersize, '1', use_bias=False, bayesian=bayesian)
 
             g = tf.tanh(tmp0 + tmp1)
 
